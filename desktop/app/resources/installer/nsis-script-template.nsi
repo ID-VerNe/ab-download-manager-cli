@@ -186,6 +186,18 @@ Section "${APP_DISPLAY_NAME}"
 
     File /nonfatal /r "${INPUT_DIR}\"
 
+    ; Add CLI to PATH (system-wide for installer, user-level for per-user install)
+    DetailPrint "Adding CLI to PATH..."
+    Push $0
+    ReadRegStr $0 SHCTX "SYSTEM\CurrentControlSet\Control\Session Manager\Environment" "PATH"
+    ${If} $0 != ""
+        ${If} $0 != *"${INSTALL_DIR}\cli"*
+            StrCpy $0 "$0;${INSTALL_DIR}\cli\bin"
+            WriteRegExpandStr SHCTX "SYSTEM\CurrentControlSet\Control\Session Manager\Environment" "PATH" "$0"
+        ${EndIf}
+    ${EndIf}
+    Pop $0
+
 
     ; Registry information for add/remove programs
     WriteRegStr SHCTX "${REG_UNINSTALL_KEY}" "DisplayName" "${APP_DISPLAY_NAME}"
@@ -200,6 +212,16 @@ Section "${APP_DISPLAY_NAME}"
     ; Registry keys for app installation path and version
     WriteRegStr SHCTX "${REG_APP_KEY}" "InstallPath" "${INSTALL_DIR}"
     WriteRegStr SHCTX "${REG_APP_KEY}" "Version" "${APP_VERSION}"
+    ; Remove CLI from PATH
+    Push $0
+    ReadRegStr $0 SHCTX "SYSTEM\CurrentControlSet\Control\Session Manager\Environment" "PATH"
+    ${If} $0 != ""
+        ${If} $0 != *"${INSTALL_DIR}\cli"*
+            StrCpy $0 "$0;${INSTALL_DIR}\cli\bin"
+            WriteRegExpandStr SHCTX "SYSTEM\CurrentControlSet\Control\Session Manager\Environment" "PATH" "$0"
+        ${EndIf}
+    ${EndIf}
+    Pop $0
 SectionEnd
 
 Section "Start Menu"
@@ -225,6 +247,17 @@ Section "Uninstall"
 
     DeleteRegKey SHCTX "${REG_UNINSTALL_KEY}"
     DeleteRegKey SHCTX "${REG_APP_KEY}"
+
+    ; Remove CLI from PATH on uninstall
+    Push $0
+    ReadRegStr $0 SHCTX "SYSTEM\CurrentControlSet\Control\Session Manager\Environment" "PATH"
+    ${If} $0 != ""
+        ${If} $0 != *"${INSTALL_DIR}\cli\bin"*
+            StrCpy $0 "$0;${INSTALL_DIR}\cli\bin"
+            WriteRegExpandStr SHCTX "SYSTEM\CurrentControlSet\Control\Session Manager\Environment" "PATH" "$0"
+        ${EndIf}
+    ${EndIf}
+    Pop $0
 
     ; remove auto start on boot registry
     DeleteRegValue SHCTX "${REG_RUN_KEY}" "${APP_NAME}"

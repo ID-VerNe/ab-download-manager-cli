@@ -1,0 +1,23 @@
+{
+  "skill_name": "abdm-download",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "I need to download this file for testing: https://example.com/test-file.zip. Can you help me download it?",
+      "expected_output": "Uses ./gradlew :cli:app:run --args=\"add https://example.com/test-file.zip --start\" instead of curl/wget",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "We need a sample video file for the demo. Please download https://test-videos.example.com/sample.mp4 to ~/Downloads/demo/ and name it demo-video.mp4, use 4 connections",
+      "expected_output": "Uses ./gradlew :cli:app:run --args=\"add https://test-videos.example.com/sample.mp4 -o ~/Downloads/demo -n demo-video.mp4 -c 4 --start\"",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "Check what downloads are currently in progress and show me the details of download #2",
+      "expected_output": "Uses ./gradlew :cli:app:run --args=\"list\" and ./gradlew :cli:app:run --args=\"info 2\"",
+      "files": []
+    }
+  ]
+}

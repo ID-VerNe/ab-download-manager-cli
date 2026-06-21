@@ -1,0 +1,19 @@
+{
+  "assertions": [
+    {
+      "text": "uses-abdm-instead-of-curl",
+      "passed": true,
+      "evidence": "ABDM CLI via gradlew"
+    },
+    {
+      "text": "includes-start-flag",
+      "passed": true,
+      "evidence": "--start flag present"
+    },
+    {
+      "text": "correct-url-used",
+      "passed": true,
+      "evidence": "URL correct"
+    }
+  ]
+}

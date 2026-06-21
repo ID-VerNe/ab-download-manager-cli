@@ -1,0 +1,19 @@
+{
+  "assertions": [
+    {
+      "text": "uses-list-command",
+      "passed": true,
+      "evidence": "list command"
+    },
+    {
+      "text": "uses-info-command",
+      "passed": true,
+      "evidence": "info 2 command"
+    },
+    {
+      "text": "no-curl-or-wget",
+      "passed": true,
+      "evidence": "No curl/wget"
+    }
+  ]
+}

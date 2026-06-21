@@ -1,0 +1,22 @@
+{
+  "eval_id": 0,
+  "eval_name": "basic-file-download",
+  "prompt": "I need to download this file for testing: https://example.com/test-file.zip. Can you help me download it?",
+  "assertions": [
+    {
+      "name": "uses-abdm-instead-of-curl",
+      "description": "Uses ./gradlew :cli:app:run --args=\"add ...\" instead of curl/wget/Invoke-WebRequest",
+      "type": "script"
+    },
+    {
+      "name": "includes-start-flag",
+      "description": "Includes --start flag to begin downloading immediately",
+      "type": "script"
+    },
+    {
+      "name": "correct-url-used",
+      "description": "The download URL matches the requested URL",
+      "type": "script"
+    }
+  ]
+}

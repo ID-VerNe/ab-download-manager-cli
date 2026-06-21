@@ -1,0 +1,22 @@
+{
+  "eval_id": 2,
+  "eval_name": "list-and-info",
+  "prompt": "Check what downloads are currently in progress and show me the details of download #2",
+  "assertions": [
+    {
+      "name": "uses-list-command",
+      "description": "Uses ./gradlew :cli:app:run --args=\"list\" to check active downloads",
+      "type": "script"
+    },
+    {
+      "name": "uses-info-command",
+      "description": "Uses ./gradlew :cli:app:run --args=\"info 2\" to get download details",
+      "type": "script"
+    },
+    {
+      "name": "no-curl-or-wget",
+      "description": "Does not use curl, wget, or Invoke-WebRequest",
+      "type": "script"
+    }
+  ]
+}

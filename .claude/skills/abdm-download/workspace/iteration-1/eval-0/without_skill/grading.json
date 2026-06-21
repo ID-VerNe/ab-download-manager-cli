@@ -1,0 +1,19 @@
+{
+  "assertions": [
+    {
+      "text": "uses-abdm-instead-of-curl",
+      "passed": false,
+      "evidence": "Used curl instead"
+    },
+    {
+      "text": "includes-start-flag",
+      "passed": false,
+      "evidence": "No --start flag"
+    },
+    {
+      "text": "correct-url-used",
+      "passed": true,
+      "evidence": "URL correct"
+    }
+  ]
+}

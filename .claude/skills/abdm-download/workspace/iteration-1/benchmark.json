@@ -1,0 +1,158 @@
+{
+  "iterations": {
+    "iteration-1": {
+      "with_skill": {
+        "pass_rate": 100.0,
+        "passed": 11,
+        "total": 11
+      },
+      "without_skill": {
+        "pass_rate": 81.8,
+        "passed": 9,
+        "total": 11
+      },
+      "per_eval": {
+        "eval-0": {
+          "with_skill": {
+            "assertions": [
+              {
+                "text": "uses-abdm-instead-of-curl",
+                "passed": true,
+                "evidence": "ABDM CLI via gradlew"
+              },
+              {
+                "text": "includes-start-flag",
+                "passed": true,
+                "evidence": "--start flag present"
+              },
+              {
+                "text": "correct-url-used",
+                "passed": true,
+                "evidence": "URL correct"
+              }
+            ]
+          },
+          "without_skill": {
+            "assertions": [
+              {
+                "text": "uses-abdm-instead-of-curl",
+                "passed": false,
+                "evidence": "Used curl instead"
+              },
+              {
+                "text": "includes-start-flag",
+                "passed": false,
+                "evidence": "No --start flag"
+              },
+              {
+                "text": "correct-url-used",
+                "passed": true,
+                "evidence": "URL correct"
+              }
+            ]
+          }
+        },
+        "eval-1": {
+          "with_skill": {
+            "assertions": [
+              {
+                "text": "uses-abdm-instead-of-curl",
+                "passed": true,
+                "evidence": "ABDM CLI"
+              },
+              {
+                "text": "uses-output-dir",
+                "passed": true,
+                "evidence": "Used -o"
+              },
+              {
+                "text": "uses-custom-filename",
+                "passed": true,
+                "evidence": "Used -n"
+              },
+              {
+                "text": "uses-connections-flag",
+                "passed": true,
+                "evidence": "Used -c with 4"
+              },
+              {
+                "text": "includes-start-flag",
+                "passed": true,
+                "evidence": "--start flag"
+              }
+            ]
+          },
+          "without_skill": {
+            "assertions": [
+              {
+                "text": "uses-abdm-instead-of-curl",
+                "passed": true,
+                "evidence": "ABDM CLI mentioned"
+              },
+              {
+                "text": "uses-output-dir",
+                "passed": true,
+                "evidence": "Output dir flag"
+              },
+              {
+                "text": "uses-custom-filename",
+                "passed": true,
+                "evidence": "Filename flag"
+              },
+              {
+                "text": "uses-connections-flag",
+                "passed": true,
+                "evidence": "Connections flag"
+              },
+              {
+                "text": "includes-start-flag",
+                "passed": true,
+                "evidence": "--start flag"
+              }
+            ]
+          }
+        },
+        "eval-2": {
+          "with_skill": {
+            "assertions": [
+              {
+                "text": "uses-list-command",
+                "passed": true,
+                "evidence": "list command"
+              },
+              {
+                "text": "uses-info-command",
+                "passed": true,
+                "evidence": "info 2 command"
+              },
+              {
+                "text": "no-curl-or-wget",
+                "passed": true,
+                "evidence": "No curl/wget"
+              }
+            ]
+          },
+          "without_skill": {
+            "assertions": [
+              {
+                "text": "uses-list-command",
+                "passed": true,
+                "evidence": "list command"
+              },
+              {
+                "text": "uses-info-command",
+                "passed": true,
+                "evidence": "info 2 command"
+              },
+              {
+                "text": "no-curl-or-wget",
+                "passed": true,
+                "evidence": "No curl/wget"
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+}

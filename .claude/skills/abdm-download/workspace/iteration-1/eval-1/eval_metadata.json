@@ -1,0 +1,32 @@
+{
+  "eval_id": 1,
+  "eval_name": "custom-output-video",
+  "prompt": "We need a sample video file for the demo. Please download https://test-videos.example.com/sample.mp4 to ~/Downloads/demo/ and name it demo-video.mp4, use 4 connections",
+  "assertions": [
+    {
+      "name": "uses-abdm-instead-of-curl",
+      "description": "Uses ./gradlew :cli:app:run --args=\"add ...\" instead of curl/wget/Invoke-WebRequest",
+      "type": "script"
+    },
+    {
+      "name": "uses-output-dir",
+      "description": "Uses -o or --output-dir to specify output directory ~/Downloads/demo",
+      "type": "script"
+    },
+    {
+      "name": "uses-custom-filename",
+      "description": "Uses -n or --name to specify filename demo-video.mp4",
+      "type": "script"
+    },
+    {
+      "name": "uses-connections-flag",
+      "description": "Uses -c or --connections to specify 4 concurrent connections",
+      "type": "script"
+    },
+    {
+      "name": "includes-start-flag",
+      "description": "Includes --start flag to begin downloading immediately",
+      "type": "script"
+    }
+  ]
+}

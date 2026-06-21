@@ -70,6 +70,9 @@ dependencies {
     implementation(project(":shared:nanohttp4k"))
     implementation(project(":desktop:mac_utils"))
     implementation(project(":desktop:slf4j-impl"))
+
+    // CLI module — ensures it's built when packaging the desktop app
+    runtimeOnly(project(":cli:app"))
 }
 
 aboutLibraries {
@@ -162,6 +165,7 @@ compose {
 
 installerPlugin {
     dependsOn("createReleaseDistributable")
+    dependsOn(":cli:app:installDist")
     outputFolder.set(layout.buildDirectory.dir("custom-installer"))
     windows {
         appName = getAppName()
@@ -198,6 +202,20 @@ installerPlugin {
 
 // ======= begin of GitHub action stuff
 val ciDir = CiUtils.getCiDir(project)
+
+// ---- CLI distribution bundling ----
+// Copy CLI distribution into the desktop release dir so the installer packages it
+val copyCliToRelease by tasks.registering(Copy::class) {
+    from("${rootProject.projectDir}/cli/app/build/install/abdm") {
+        include("**")
+    }
+    into(layout.buildDirectory.dir("compose/binaries/main-release/app/${getAppName()}/cli"))
+}
+
+// Hook into the installer plugin's task chain
+tasks.matching { it.name == installerPlugin.createInstallerTask.name }.configureEach {
+    dependsOn(":cli:app:installDist", copyCliToRelease)
+}
 
 val appPackageNameByComposePlugin
     get() = requireNotNull(compose.desktop.application.nativeDistributions.packageName) {
