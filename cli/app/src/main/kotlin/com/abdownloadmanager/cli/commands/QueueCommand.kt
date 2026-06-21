@@ -52,12 +52,15 @@ class QueueStartCommand : CliktCommand(
     help = "Start a queue"
 ), KoinComponent {
     private val downloadService: CliDownloadService by inject()
+    private val queueManager: QueueManager by inject()
 
     private val queueId: Long by argument(help = "Queue ID to start").long()
 
     override fun run() = runBlocking {
         val term = Terminal()
         downloadService.boot()
+        val queue = queueManager.getQueue(queueId)
+        queue.start()
         term.println((TextColors.green)("Queue #$queueId started"))
     }
 }
@@ -67,12 +70,15 @@ class QueueStopCommand : CliktCommand(
     help = "Stop a queue"
 ), KoinComponent {
     private val downloadService: CliDownloadService by inject()
+    private val queueManager: QueueManager by inject()
 
     private val queueId: Long by argument(help = "Queue ID to stop").long()
 
     override fun run() = runBlocking {
         val term = Terminal()
         downloadService.boot()
+        val queue = queueManager.getQueue(queueId)
+        queue.stopAsync()
         term.println((TextColors.green)("Queue #$queueId stopped"))
     }
 }

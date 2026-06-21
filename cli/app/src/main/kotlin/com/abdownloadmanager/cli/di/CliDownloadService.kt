@@ -78,4 +78,9 @@ class CliDownloadService(
             .find { it.id == id }
             ?.getDownloadedSize() ?: 0L
     }
+
+    /** Add a download to a queue */
+    suspend fun addToQueue(queueId: Long, downloadId: Long) {
+        queueManager.addToQueue(queueId, downloadId)
+    }
 }

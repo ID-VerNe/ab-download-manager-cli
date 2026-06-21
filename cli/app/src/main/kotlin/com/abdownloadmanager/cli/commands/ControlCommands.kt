@@ -9,9 +9,30 @@ import com.github.ajalt.clikt.parameters.types.long
 import com.github.ajalt.mordant.rendering.TextColors
 import com.github.ajalt.mordant.terminal.Terminal
 import ir.amirab.downloader.downloaditem.EmptyContext
+import ir.amirab.downloader.downloaditem.IDownloadItem
 import kotlinx.coroutines.runBlocking
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
+
+@Serializable
+data class DownloadInfoJsonItem(
+    val id: Long,
+    val name: String,
+    val url: String?,
+    val folder: String?,
+    val status: String,
+    val size: Long,
+    val sizeFormatted: String,
+    val dateAdded: Long,
+    val startTime: Long?,
+    val completeTime: Long?,
+    val connections: Int?,
+    val speedLimit: Long,
+    val checksum: String?,
+)
 
 class PauseCommand : CliktCommand(
     name = "pause",
@@ -117,37 +138,69 @@ class InfoCommand : CliktCommand(
 ), KoinComponent {
     private val downloadService: CliDownloadService by inject()
 
-    private val id: Long by argument(
-        help = "Download ID"
-    ).long()
+    private val ids: List<Long> by argument(
+        help = "Download ID(s)"
+    ).long().multiple()
+
+    private val json: Boolean by option("--json", help = "Output as JSON").flag()
 
     override fun run() = runBlocking {
         val term = Terminal()
         downloadService.boot()
 
-        val item = downloadService.getItem(id)
-        if (item == null) {
-            term.println((TextColors.red)("Download #$id not found"))
-            return@runBlocking
+        val foundItems = ids.mapNotNull { id ->
+            val item = downloadService.getItem(id)
+            if (item == null) {
+                term.println((TextColors.red)("Download #$id not found"))
+                null
+            } else {
+                item
+            }
         }
 
-        term.println((TextColors.brightCyan)("Download #${item.id}"))
-        term.println((TextColors.brightBlue)("  Name:    ") + item.name)
-        term.println((TextColors.brightBlue)("  URL:     ") + item.link)
-        term.println((TextColors.brightBlue)("  Folder:  ") + item.folder)
-        term.println((TextColors.brightBlue)("  Status:  ") + item.status.name)
-        term.println((TextColors.brightBlue)("  Size:    ") + formatSize(item.contentLength))
-        term.println((TextColors.brightBlue)("  Added:   ") + formatTimestamp(item.dateAdded))
+        if (json) {
+            val jsonItems = foundItems.map { it.toDownloadInfoJson() }
+            term.println(Json { prettyPrint = true }.encodeToString(jsonItems))
+        } else {
+            for (item in foundItems) {
+                term.println((TextColors.brightCyan)("Download #${item.id}"))
+                term.println((TextColors.brightBlue)("  Name:    ") + item.name)
+                term.println((TextColors.brightBlue)("  URL:     ") + item.link)
+                term.println((TextColors.brightBlue)("  Folder:  ") + item.folder)
+                term.println((TextColors.brightBlue)("  Status:  ") + item.status.name)
+                term.println((TextColors.brightBlue)("  Size:    ") + formatSize(item.contentLength))
+                term.println((TextColors.brightBlue)("  Added:   ") + formatTimestamp(item.dateAdded))
 
-        if (item.preferredConnectionCount != null) {
-            term.println((TextColors.brightBlue)("  Connections: ") + item.preferredConnectionCount)
+                if (item.preferredConnectionCount != null) {
+                    term.println((TextColors.brightBlue)("  Connections: ") + item.preferredConnectionCount)
+                }
+                if (item.speedLimit > 0) {
+                    term.println((TextColors.brightBlue)("  Speed limit: ") + formatSpeed(item.speedLimit))
+                }
+                if (item.fileChecksum != null) {
+                    term.println((TextColors.brightBlue)("  Checksum: ") + item.fileChecksum)
+                }
+                term.println()
+            }
         }
-        if (item.speedLimit > 0) {
-            term.println((TextColors.brightBlue)("  Speed limit: ") + formatSpeed(item.speedLimit))
-        }
-        if (item.fileChecksum != null) {
-            term.println((TextColors.brightBlue)("  Checksum: ") + item.fileChecksum)
-        }
+    }
+
+    private fun IDownloadItem.toDownloadInfoJson(): DownloadInfoJsonItem {
+        return DownloadInfoJsonItem(
+            id = id,
+            name = name,
+            url = link,
+            folder = folder,
+            status = status.name,
+            size = contentLength,
+            sizeFormatted = formatSize(contentLength),
+            dateAdded = dateAdded,
+            startTime = startTime,
+            completeTime = completeTime,
+            connections = preferredConnectionCount,
+            speedLimit = speedLimit,
+            checksum = fileChecksum,
+        )
     }
 
     private fun formatSize(bytes: Long): String {

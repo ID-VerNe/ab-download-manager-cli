@@ -74,6 +74,16 @@ class AddCommand : CliktCommand(
         help = "Duplicate handling: abort (default, skip & warn), override (re-download), add-numbered (auto-rename)"
     )
 
+    private val username: String? by option(
+        "--username", "-u",
+        help = "HTTP Basic Auth username"
+    )
+
+    private val password: String? by option(
+        "--password", "-p",
+        help = "HTTP Basic Auth password"
+    )
+
     override fun run() = runBlocking {
         val term = Terminal()
         downloadService.boot()
@@ -97,6 +107,8 @@ class AddCommand : CliktCommand(
                     id = -1,
                     folder = folder,
                     name = itemName,
+                    username = username,
+                    password = password,
                     preferredConnectionCount = connections,
                 )
 
@@ -109,6 +121,11 @@ class AddCommand : CliktCommand(
 
                 val id = downloadService.addDownload(props)
                 successCount++
+
+                val queueId = queue
+                if (queueId != null) {
+                    downloadService.addToQueue(queueId, id)
+                }
 
                 if (start && detach) {
                     // Detach mode: start and exit immediately

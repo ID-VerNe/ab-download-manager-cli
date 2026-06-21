@@ -24,6 +24,12 @@ class CliApp : CliktCommand(
 fun main(args: Array<String>) {
     val term = Terminal()
 
+    // Handle --version before booting DI
+    if (args.contains("--version")) {
+        println("abdm version ${CliAppInfo.appVersion}")
+        return
+    }
+
     try {
         val configDirFile = parseArg(args, "--config-dir")?.let(::File)
             ?: File(System.getProperty("user.home"), ".abdm-cli")

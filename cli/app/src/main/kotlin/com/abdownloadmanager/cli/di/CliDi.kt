@@ -88,8 +88,9 @@ private fun cliModule(paths: CliPaths, dataDir: File) = module {
     }
 
     // === JSON ===
-    // Note: uses lazy delegate to avoid circular dependency with DownloaderRegistry
+    // Dynamically register serializers for all downloader types
     single {
+        val downloaderRegistry: DownloaderRegistry = get()
         Json {
             encodeDefaults = true
             prettyPrint = false
@@ -97,14 +98,15 @@ private fun cliModule(paths: CliPaths, dataDir: File) = module {
             serializersModule = SerializersModule {
                 polymorphic(IDownloadItem::class) {
                     defaultDeserializer { HttpDownloadItem.serializer() }
-                    subclass(HttpDownloadItem::class, HttpDownloadItem.serializer())
+                    downloaderRegistry.getAll().forEach {
+                        subclass(it.downloadItemClass, it.downloadItemSerializer)
+                    }
                 }
                 polymorphic(IDownloadCredentials::class) {
                     defaultDeserializer { HttpDownloadCredentials.serializer() }
-                    subclass(
-                        HttpDownloadCredentials::class,
-                        HttpDownloadCredentials.serializer()
-                    )
+                    downloaderRegistry.getAll().forEach {
+                        subclass(it.downloadCredentialsClass, it.downloadCredentialsSerializer)
+                    }
                 }
             }
         }
