@@ -212,8 +212,8 @@ val copyCliToRelease by tasks.registering(Copy::class) {
     into(layout.buildDirectory.dir("compose/binaries/main-release/app/${getAppName()}/cli"))
 }
 
-// Hook into the installer plugin's task chain
-tasks.matching { it.name == installerPlugin.createInstallerTask.name }.configureEach {
+// Hook into the installer plugin's task chain — also depends on createInstallerNsis
+tasks.matching { it.name in listOf(installerPlugin.createInstallerTask.name, "createInstallerNsis") }.configureEach {
     dependsOn(":cli:app:installDist", copyCliToRelease)
 }
 

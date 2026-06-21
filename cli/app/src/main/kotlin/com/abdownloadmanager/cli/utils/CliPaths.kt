@@ -51,9 +51,12 @@ class CliPaths(
          * Looks for the common install locations.
          */
         private fun findDesktopDataDir(): File? {
+            val localAppData = System.getenv("LOCALAPPDATA") ?: ""
             val candidates = listOf(
-                // Desktop app default install location
-                File(System.getenv("LOCALAPPDATA") ?: "", "AB Download Manager"),
+                // Desktop app default install path (NSIS installer: $LOCALAPPDATA\ABDownloadManager)
+                File(localAppData, "ABDownloadManager"),
+                // Desktop app data dir (Compose native distribution uses prettified name)
+                File(localAppData, "AB Download Manager"),
                 // Also check user home
                 File(System.getProperty("user.home"), "AB Download Manager"),
                 // Development build location

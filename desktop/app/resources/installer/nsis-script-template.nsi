@@ -186,18 +186,19 @@ Section "${APP_DISPLAY_NAME}"
 
     File /nonfatal /r "${INPUT_DIR}\"
 
-    ; Add CLI to PATH (system-wide for installer, user-level for per-user install)
-    DetailPrint "Adding CLI to PATH..."
+    ; Add CLI to User PATH (non-admin, instant effect)
+    DetailPrint "Adding CLI to User PATH..."
     Push $0
-    ReadRegStr $0 SHCTX "SYSTEM\CurrentControlSet\Control\Session Manager\Environment" "PATH"
+    ReadRegStr $0 HKCU "Environment" "PATH"
     ${If} $0 != ""
-        ${If} $0 != *"${INSTALL_DIR}\cli"*
+        ${If} $0 != *"${INSTALL_DIR}\cli\bin"*
             StrCpy $0 "$0;${INSTALL_DIR}\cli\bin"
-            WriteRegExpandStr SHCTX "SYSTEM\CurrentControlSet\Control\Session Manager\Environment" "PATH" "$0"
+            WriteRegExpandStr HKCU "Environment" "PATH" "$0"
         ${EndIf}
+    ${Else}
+        WriteRegExpandStr HKCU "Environment" "PATH" "${INSTALL_DIR}\cli\bin"
     ${EndIf}
     Pop $0
-
 
     ; Registry information for add/remove programs
     WriteRegStr SHCTX "${REG_UNINSTALL_KEY}" "DisplayName" "${APP_DISPLAY_NAME}"
@@ -212,16 +213,6 @@ Section "${APP_DISPLAY_NAME}"
     ; Registry keys for app installation path and version
     WriteRegStr SHCTX "${REG_APP_KEY}" "InstallPath" "${INSTALL_DIR}"
     WriteRegStr SHCTX "${REG_APP_KEY}" "Version" "${APP_VERSION}"
-    ; Remove CLI from PATH
-    Push $0
-    ReadRegStr $0 SHCTX "SYSTEM\CurrentControlSet\Control\Session Manager\Environment" "PATH"
-    ${If} $0 != ""
-        ${If} $0 != *"${INSTALL_DIR}\cli"*
-            StrCpy $0 "$0;${INSTALL_DIR}\cli\bin"
-            WriteRegExpandStr SHCTX "SYSTEM\CurrentControlSet\Control\Session Manager\Environment" "PATH" "$0"
-        ${EndIf}
-    ${EndIf}
-    Pop $0
 SectionEnd
 
 Section "Start Menu"
@@ -248,17 +239,125 @@ Section "Uninstall"
     DeleteRegKey SHCTX "${REG_UNINSTALL_KEY}"
     DeleteRegKey SHCTX "${REG_APP_KEY}"
 
-    ; Remove CLI from PATH on uninstall
+    ; Remove CLI from PATH on uninstall (machine-wide)
+    DetailPrint "Removing CLI from PATH..."
     Push $0
     ReadRegStr $0 SHCTX "SYSTEM\CurrentControlSet\Control\Session Manager\Environment" "PATH"
     ${If} $0 != ""
-        ${If} $0 != *"${INSTALL_DIR}\cli\bin"*
-            StrCpy $0 "$0;${INSTALL_DIR}\cli\bin"
-            WriteRegExpandStr SHCTX "SYSTEM\CurrentControlSet\Control\Session Manager\Environment" "PATH" "$0"
-        ${EndIf}
+        Push $0
+        Push "${INSTALL_DIR}\cli\bin"
+        Call un.RemoveFromPath
+        Pop $0
+        WriteRegExpandStr SHCTX "SYSTEM\CurrentControlSet\Control\Session Manager\Environment" "PATH" "$0"
     ${EndIf}
     Pop $0
 
     ; remove auto start on boot registry
     DeleteRegValue SHCTX "${REG_RUN_KEY}" "${APP_NAME}"
 SectionEnd
+
+; Helper function: removes a single path entry from a semicolon-delimited PATH string
+; Usage: Push pathString, Push entryToRemove, Call RemoveFromPath, Pop result
+Function un.RemoveFromPath
+    Exch $0 ; entry to remove
+    Exch
+    Exch $1 ; original path string
+    Push $2
+    Push $3
+    Push $4
+
+    StrCpy $2 "" ; result buffer
+    StrCpy $4 "0" ; first-item flag
+
+    ; Split by semicolon and rebuild without the target entry
+    loop:
+        StrCpy $3 $1 1 0
+        ${If} $3 == ""
+            Goto done
+        ${EndIf}
+        ${If} $3 == ";"
+            StrCpy $1 $1 "" 1 ; consume the semicolon
+            Goto loop
+        ${EndIf}
+
+        ; Extract item up to next semicolon or end
+        Push $1
+        Push ";"
+        Call un.StrStr
+        Pop $3
+        ${If} $3 == ""
+            ; Last item
+            ${If} $1 != $0
+                ${If} $4 == "0"
+                    StrCpy $2 "$1"
+                    StrCpy $4 "1"
+                ${Else}
+                    StrCpy $2 "$2;$1"
+                ${EndIf}
+            ${EndIf}
+            StrCpy $1 ""
+        ${Else}
+            ; There is a semicolon after this item
+            StrLen $3 $3
+            StrLen $1 $1
+            IntOp $3 $1 - $3 ; length of item before semicolon
+            StrCpy $3 $1 $3
+            StrCpy $1 $1 "" $3 ; remaining after item+semicolon
+            StrCpy $1 $1 "" 1 ; skip the semicolon
+
+            ${If} $3 != $0
+                ${If} $4 == "0"
+                    StrCpy $2 "$3"
+                    StrCpy $4 "1"
+                ${Else}
+                    StrCpy $2 "$2;$3"
+                ${EndIf}
+            ${EndIf}
+        ${EndIf}
+    Goto loop
+
+    done:
+    Pop $4
+    Pop $3
+    Pop $2
+    Pop $1
+    Exch $0
+FunctionEnd
+
+; Helper: find substring in string
+; Usage: Push haystack, Push needle, Call un.StrStr, Pop result (empty if not found)
+Function un.StrStr
+    Exch $0 ; needle
+    Exch
+    Exch $1 ; haystack
+    Push $2
+    Push $3
+    Push $4
+
+    StrLen $3 $0
+    ${If} $3 == 0
+        StrCpy $2 ""
+        Goto strstr_done
+    ${EndIf}
+
+    StrCpy $2 $1
+    strstr_loop:
+        StrCpy $4 $2 $3
+        ${If} $4 == $0
+            Goto strstr_done
+        ${EndIf}
+        StrLen $4 $2
+        ${If} $4 == 0
+            StrCpy $2 ""
+            Goto strstr_done
+        ${EndIf}
+        StrCpy $2 $2 "" 1
+    Goto strstr_loop
+
+    strstr_done:
+    Pop $4
+    Pop $3
+    Pop $2
+    Pop $1
+    Exch $0 ; result (empty if not found, or remaining string starting at match)
+FunctionEnd

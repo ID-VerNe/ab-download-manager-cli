@@ -71,4 +71,11 @@ class CliDownloadService(
     fun getActiveCount(): Int {
         return runBlocking { downloadManager.getActiveCount() }
     }
+
+    /** Get the downloaded byte count for a given download job */
+    suspend fun getDownloadedSize(id: Long): Long {
+        return downloadManager.downloadJobs
+            .find { it.id == id }
+            ?.getDownloadedSize() ?: 0L
+    }
 }

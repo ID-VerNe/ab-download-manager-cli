@@ -21,8 +21,12 @@ fun getFeatures(): Set<String> = setOf(
 
 val jvmToolchainVersion =  providers.gradleProperty("jvm.toolchain").get().toInt()
 
+java {
+    toolchain {
+        languageVersion.set(JavaLanguageVersion.of(jvmToolchainVersion))
+    }
+}
 kotlin {
-    jvmToolchain(jvmToolchainVersion)
     compilerOptions {
         val optIns = getOptIns().map { "-Xopt-in=$it" }
         val features = getFeatures().map { "-X$it" }

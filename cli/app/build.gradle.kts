@@ -41,6 +41,7 @@ dependencies {
 application {
     mainClass = "com.abdownloadmanager.cli.CliMainKt"
     applicationName = "abdm"
+    applicationDefaultJvmArgs = listOf("-Djava.awt.headless=true")
 }
 
 tasks.named<JavaExec>("run") {

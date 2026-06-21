@@ -62,6 +62,6 @@ if not defined CLASSPATH (
     exit /b 1
 )
 
-"%JAVA_EXE%" -cp "%CLASSPATH%" com.abdownloadmanager.cli.CliMainKt %*
+"%JAVA_EXE%" -Djava.awt.headless=true -cp "%CLASSPATH%" com.abdownloadmanager.cli.CliMainKt %*
 
 endlocal

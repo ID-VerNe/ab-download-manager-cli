@@ -3,6 +3,7 @@ setlocal
 set "ABDM_DIR=%~dp0cli\app\build\install\abdm"
 set "ABDM_BIN=%ABDM_DIR%\bin\abdm.bat"
 if exist "%ABDM_BIN%" (
+    set "JAVA_OPTS=-Djava.awt.headless=true"
     call "%ABDM_BIN%" %*
 ) else (
     echo Building AB Download Manager CLI first...
