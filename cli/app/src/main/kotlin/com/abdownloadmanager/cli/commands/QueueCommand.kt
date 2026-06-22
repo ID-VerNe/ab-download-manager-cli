@@ -24,10 +24,12 @@ class QueueListCommand : CliktCommand(
     name = "list",
     help = "List all queues"
 ), KoinComponent {
+    private val downloadService: CliDownloadService by inject()
     private val queueManager: QueueManager by inject()
 
     override fun run() = runBlocking {
         val term = Terminal()
+        downloadService.boot()
         val queues = queueManager.getAll()
 
         if (queues.isEmpty()) {

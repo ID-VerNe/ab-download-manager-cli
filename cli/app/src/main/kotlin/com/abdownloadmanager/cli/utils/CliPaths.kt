@@ -29,6 +29,9 @@ class CliPaths(
     /** Download data (partial files, etc.) */
     val downloadDataDir: File = ensureDir(File(dataDir, "download_data"))
 
+    /** Categories */
+    val categoriesFile: File = File(downloadDbDir, "categories/categories.json")
+
     companion object {
         /**
          * Detect the desktop app's data directory.

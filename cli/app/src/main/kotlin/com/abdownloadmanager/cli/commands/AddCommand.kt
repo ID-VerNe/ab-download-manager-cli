@@ -84,6 +84,11 @@ class AddCommand : CliktCommand(
         help = "HTTP Basic Auth password"
     )
 
+    private val speedLimit: Long? by option(
+        "--speed-limit", "-l",
+        help = "Download speed limit in bytes per second (0 = unlimited)"
+    ).long()
+
     override fun run() = runBlocking {
         val term = Terminal()
         downloadService.boot()
@@ -110,6 +115,7 @@ class AddCommand : CliktCommand(
                     username = username,
                     password = password,
                     preferredConnectionCount = connections,
+                    speedLimit = speedLimit ?: 0,
                 )
 
                 val props = NewDownloadItemProps(
@@ -154,7 +160,9 @@ class AddCommand : CliktCommand(
                     term.println()
                 }
             } catch (e: Exception) {
-                term.println((TextColors.red)("✗") + " Failed to add $url: ${e.message}")
+                if (!quiet) {
+                    term.println((TextColors.red)("✗") + " Failed to add $url: ${e.message}")
+                }
             }
         }
 

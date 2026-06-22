@@ -3,8 +3,8 @@ package com.abdownloadmanager.cli
 import com.abdownloadmanager.cli.commands.*
 import com.abdownloadmanager.cli.daemon.DaemonCommand
 import com.abdownloadmanager.cli.di.CliDi
-import com.abdownloadmanager.cli.tui.MonitorCommand
 import com.abdownloadmanager.cli.utils.CliAppInfo
+import com.abdownloadmanager.cli.utils.CliPaths
 import com.github.ajalt.clikt.core.CliktCommand
 import com.github.ajalt.clikt.core.subcommands
 import com.github.ajalt.mordant.rendering.TextColors
@@ -16,8 +16,11 @@ class CliApp : CliktCommand(
     help = "AB Download Manager CLI"
 ) {
     override fun run() {
-        echo("AB Download Manager CLI", err = true)
-        echo("Use --help to see available commands.", err = true)
+        // Only show banner when no subcommand is invoked (bare `abdm`)
+        if (currentContext.invokedSubcommand == null) {
+            echo("AB Download Manager CLI", err = true)
+            echo("Use --help to see available commands.", err = true)
+        }
     }
 }
 
@@ -32,6 +35,7 @@ fun main(args: Array<String>) {
 
     try {
         val configDirFile = parseArg(args, "--config-dir")?.let(::File)
+            ?: CliPaths.detectDataDir()
             ?: File(System.getProperty("user.home"), ".abdm-cli")
         val downloadDirFile = parseArg(args, "--download-dir")?.let(::File)
             ?: parseArg(args, "-d")?.let(::File)
@@ -54,11 +58,13 @@ fun main(args: Array<String>) {
             CategoryCommand().subcommands(
                 CategoryListCommand(),
             ),
-            MonitorCommand(),
             DaemonCommand(),
         )
 
         app.main(args)
+        // Force exit after command completes — background threads (OkHttp, coroutines)
+        // keep the JVM alive and prevent auto-exit on Windows
+        System.exit(0)
     } catch (e: com.github.ajalt.clikt.core.CliktError) {
         System.err.println(e.message)
         System.exit(64)
@@ -73,7 +79,10 @@ fun main(args: Array<String>) {
 
 private fun parseArg(args: Array<String>, flag: String): String? {
     val idx = args.indexOf(flag)
-    return if (idx >= 0 && idx + 1 < args.size && !args[idx + 1].startsWith("-")) {
-        args[idx + 1]
-    } else null
+    if (idx >= 0 && idx + 1 < args.size && !args[idx + 1].startsWith("-")) {
+        return args[idx + 1]
+    }
+    // Support --key=value syntax
+    val eqPrefix = "$flag="
+    return args.firstOrNull { it.startsWith(eqPrefix) }?.removePrefix(eqPrefix)
 }

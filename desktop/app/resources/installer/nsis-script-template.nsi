@@ -100,6 +100,7 @@ FunctionEnd
 !macro clearFiles
     RmDir /r "${INSTALL_DIR}\app"
     RmDir /r "${INSTALL_DIR}\runtime"
+    RmDir /r "${INSTALL_DIR}\cli"
     Delete "${INSTALL_DIR}\${MAIN_BINARY_NAME}.exe"
     Delete "${INSTALL_DIR}\${MAIN_BINARY_NAME}.ico"
     Delete "${INSTALL_DIR}\uninstall.exe"
@@ -124,20 +125,17 @@ FunctionEnd
 ; I should improve this.
 !macro closeApp
     !insertmacro GetBestExecutableName $1
-    DetailPrint "Stopping Executable $1"
-    ; I don't wanna kill myself!
-    ${If} "$EXEFILE" != "$1"
-        ExecWait 'taskkill /F /IM "$1"' $0
-    ${Else}
-        DetailPrint "It seems that installer file name is same as app executable name"
-        DetailPrint "Please close app manually"
-        ; don't sleep the script for nothing.
-        StrCpy $0 "1"
-    ${EndIf}
+    DetailPrint "Stopping running instances of $1"
+    ; Get installer's own PID so we can exclude it from taskkill
+    System::Call 'kernel32::GetCurrentProcessId() i.r2'
+    ; Kill all matching processes EXCEPT the installer itself
+    ExecWait 'taskkill /F /FI "PID ne $2" /IM "$1"' $0
     ${If} $0 == "0"
         Sleep 500
-        BringToFront ; when we sleep it seems that window goes down
-        DetailPrint "Current app stopped successfully"
+        BringToFront
+        DetailPrint "Existing app stopped successfully"
+    ${Else}
+        DetailPrint "No running instances found to stop"
     ${Endif}
 !macroend
 

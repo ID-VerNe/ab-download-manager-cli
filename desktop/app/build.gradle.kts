@@ -203,18 +203,25 @@ installerPlugin {
 // ======= begin of GitHub action stuff
 val ciDir = CiUtils.getCiDir(project)
 
-// ---- CLI distribution bundling ----
-// Copy CLI distribution into the desktop release dir so the installer packages it
-val copyCliToRelease by tasks.registering(Copy::class) {
-    from("${rootProject.projectDir}/cli/app/build/install/abdm") {
-        include("**")
-    }
-    into(layout.buildDirectory.dir("compose/binaries/main-release/app/${getAppName()}/cli"))
-}
+// Register task to copy CLI distribution into the desktop release dir
+val cliInstallDir = "${rootProject.projectDir}/cli/app/build/install/abdm"
+val releaseDir = layout.buildDirectory.dir("compose/binaries/main-release/app/${getAppName()}")
 
-// Hook into the installer plugin's task chain — also depends on createInstallerNsis
+// Hook into the installer plugin's task chain — ensure CLI is copied right before the installer runs
 tasks.matching { it.name in listOf(installerPlugin.createInstallerTask.name, "createInstallerNsis") }.configureEach {
-    dependsOn(":cli:app:installDist", copyCliToRelease)
+    dependsOn(":cli:app:installDist")
+    doFirst {
+        // Copy right before installer runs — guarantees release dir is fully built first
+        val dest = releaseDir.get().asFile.resolve("cli")
+        logger.lifecycle("Copying CLI distribution to ${dest.absolutePath}")
+        dest.mkdirs()
+        copy {
+            from(cliInstallDir) {
+                include("**")
+            }
+            into(dest)
+        }
+    }
 }
 
 val appPackageNameByComposePlugin
