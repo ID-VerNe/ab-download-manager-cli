@@ -200,10 +200,8 @@ Section "${APP_DISPLAY_NAME}"
     Push $0
     ReadRegStr $0 HKCU "Environment" "PATH"
     ${If} $0 != ""
-        ${If} $0 != *"${INSTALL_DIR}\cli\bin"*
-            StrCpy $0 "$0;${INSTALL_DIR}\cli\bin"
-            WriteRegExpandStr HKCU "Environment" "PATH" "$0"
-        ${EndIf}
+        StrCpy $0 "$0;${INSTALL_DIR}\cli\bin"
+        WriteRegExpandStr HKCU "Environment" "PATH" "$0"
     ${Else}
         WriteRegExpandStr HKCU "Environment" "PATH" "${INSTALL_DIR}\cli\bin"
     ${EndIf}
@@ -248,16 +246,16 @@ Section "Uninstall"
     DeleteRegKey SHCTX "${REG_UNINSTALL_KEY}"
     DeleteRegKey SHCTX "${REG_APP_KEY}"
 
-    ; Remove CLI from PATH on uninstall (machine-wide)
+    ; Remove CLI from PATH on uninstall (user-level PATH, matching the install section)
     DetailPrint "Removing CLI from PATH..."
     Push $0
-    ReadRegStr $0 SHCTX "SYSTEM\CurrentControlSet\Control\Session Manager\Environment" "PATH"
+    ReadRegStr $0 HKCU "Environment" "PATH"
     ${If} $0 != ""
         Push $0
         Push "${INSTALL_DIR}\cli\bin"
         Call un.RemoveFromPath
         Pop $0
-        WriteRegExpandStr SHCTX "SYSTEM\CurrentControlSet\Control\Session Manager\Environment" "PATH" "$0"
+        WriteRegExpandStr HKCU "Environment" "PATH" "$0"
     ${EndIf}
     Pop $0
 

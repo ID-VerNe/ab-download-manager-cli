@@ -35,6 +35,7 @@ object DaemonBootstrap : KoinComponent {
     private var lock: FileLock? = null
     private var lockRaf: RandomAccessFile? = null
     private var shutdownLatch: CountDownLatch? = null
+    private var shutdownComplete = false
 
     /**
      * Start the daemon (blocking — does not return until shutdown is requested).
@@ -64,7 +65,13 @@ object DaemonBootstrap : KoinComponent {
             }
         )
         val httpServer = MyHttp4KServer(port, handlerMap, isDebugMode = false)
-        httpServer.startMyServer()
+        try {
+            httpServer.startMyServer()
+        } catch (e: Exception) {
+            releaseLock()
+            println("[daemon] Failed to start HTTP server on port $port: ${e.message}")
+            throw e
+        }
         server = httpServer
 
         // 4. Write port file for CLI client discovery
@@ -83,6 +90,23 @@ object DaemonBootstrap : KoinComponent {
 
         // 7. Clean shutdown (reached when CountDownLatch is released)
         doShutdown(daemonPaths)
+    }
+
+    /**
+     * Start the daemon for testing purposes (non-blocking).
+     * Exposed for integration tests.
+     */
+    fun startInBackground(port: Int = DEFAULT_PORT + 1) {
+        Thread({
+            try {
+                start(port)
+            } catch (_: Exception) {
+                // Allow test to inspect error state
+            }
+        }, "daemon-background").apply {
+            isDaemon = true
+            start()
+        }
     }
 
     /**
@@ -123,6 +147,9 @@ object DaemonBootstrap : KoinComponent {
      * Clean shutdown: stop HTTP server, delete port file, release lock.
      */
     private fun doShutdown(daemonPaths: DaemonPaths) {
+        // Prevent double-invocation (e.g., from both the main path and the shutdown hook)
+        if (shutdownComplete) return
+        shutdownComplete = true
         // Stop all active downloads gracefully
         runCatching {
             runBlocking { downloadService.pauseAll() }

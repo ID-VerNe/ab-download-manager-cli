@@ -5,6 +5,7 @@ import com.abdownloadmanager.cli.utils.CliAppSettings
 import com.abdownloadmanager.integration.HandlerMap
 import com.abdownloadmanager.integration.MyResponse
 import ir.amirab.downloader.DownloadSettings
+import java.io.File
 import ir.amirab.downloader.NewDownloadItemProps
 import ir.amirab.downloader.downloaditem.DownloadStatus
 import ir.amirab.downloader.downloaditem.EmptyContext
@@ -16,6 +17,7 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import java.net.URI
 
 /**
  * HTTP API routes for the daemon process.
@@ -78,13 +80,10 @@ object DaemonApi {
             // --- List downloads ---
             get("/api/list") {
                 if (svc == null) return@get jsonError("Daemon not fully initialized")
-                // Support ?all=true query via the URI — note: HandlerMap uses exact URI match,
-                // so we inspect the raw request body or use a separate route if needed.
-                // For now, we always return all items. The CLI client sends the right query.
                 val items = svc.getAllItems()
                 val jsonList = items.map { it.toItemJson(svc) }
                 val jsonStr = json.encodeToString(jsonList)
-                MyResponse.Json(jsonStr)
+                MyResponse.Json("""{"success":true,"data":$jsonStr,"error":null}""")
             }
 
             // --- List single download (via ?id=X in URI) ---
@@ -100,7 +99,7 @@ object DaemonApi {
                 val item = runBlocking { svc.getItem(id) }
                 if (item == null) return@post jsonError("Download #$id not found")
                 val jsonStr = json.encodeToString(item.toItemJson())
-                MyResponse.Json(jsonStr)
+                MyResponse.Json("""{"success":true,"data":$jsonStr,"error":null}""")
             }
 
             // --- Add download ---
@@ -129,6 +128,11 @@ object DaemonApi {
                     preferredConnectionCount = req.connections,
                     speedLimit = req.speedLimit ?: 0,
                 )
+                // Validate URL scheme
+                val urlScheme = runCatching { URI(req.url).scheme?.lowercase() }.getOrDefault("")
+                if (urlScheme !in listOf("http", "https", "ftp", "ftps", "")) {
+                    return@post jsonError("Unsupported URL scheme: $urlScheme")
+                }
                 val props = NewDownloadItemProps(
                     downloadItem = downloadItem,
                     extraConfig = null,
@@ -150,7 +154,7 @@ object DaemonApi {
 
                     MyResponse.Json(jsonSuccess(mapOf("id" to id)))
                 } catch (e: Exception) {
-                    jsonError("Failed to add download: ${e.message}")
+                    return@post jsonError("Failed to add download: ${e.message}")
                 }
             }
 
@@ -228,17 +232,15 @@ object DaemonApi {
                 val queues = svc.getQueues()
                 val jsonList = queues.map { q ->
                     val model = q.getQueueModel()
-                    mapOf(
-                        "id" to model.id,
-                        "name" to model.name,
-                        "queueItems" to model.queueItems,
-                        "isQueueActive" to q.isQueueActive,
+                    QueueItem(
+                        id = model.id,
+                        name = model.name,
+                        queueItems = model.queueItems,
+                        isQueueActive = q.isQueueActive,
                     )
                 }
-                val jsonStr = jsonList.joinToString(",", "[", "]") { entry ->
-                    """{"id":${entry["id"]},"name":"${entry["name"]}","queueItems":${anyToJson(entry["queueItems"])},"isQueueActive":${entry["isQueueActive"]}}"""
-                }
-                MyResponse.Json(jsonStr)
+                val jsonStr = json.encodeToString(jsonList)
+                MyResponse.Json("""{"success":true,"data":$jsonStr,"error":null}""")
             }
 
             // --- Start a queue ---
@@ -250,6 +252,17 @@ object DaemonApi {
                 }.getOrElse { return@post jsonError("Invalid request body") }
                 svc.startQueue(queueId)
                 MyResponse.Text(jsonSuccess("Queue #$queueId started"))
+            }
+
+            // --- Stop a queue ---
+            post("/api/queue/stop") {
+                if (svc == null) return@post jsonError("Daemon not fully initialized")
+                val body = it.getBody().orEmpty()
+                val queueId = runCatching {
+                    json.decodeFromString<QueueIdRequest>(body).queueId
+                }.getOrElse { return@post jsonError("Invalid request body") }
+                svc.stopQueue(queueId)
+                MyResponse.Text(jsonSuccess("Queue #$queueId stopped"))
             }
 
             // --- Shutdown ---
@@ -270,13 +283,13 @@ object DaemonApi {
                 }.getOrElse { return@post jsonError("Invalid request body") }
                 val item = runBlocking { svc.getItem(req.id) }
                 if (item == null) return@post jsonError("Download #${req.id} not found")
-                val file = java.io.File(item.folder, item.name)
+                val file = File(item.folder, item.name)
                 if (!file.exists()) return@post jsonError("File not found: ${file.absolutePath}")
-                try {
-                    java.awt.Desktop.getDesktop().open(file)
+                val result = openFileWithSystem(file)
+                if (result.isSuccess) {
                     MyResponse.Text(jsonSuccess("Opened ${file.name}"))
-                } catch (e: Exception) {
-                    jsonError("Cannot open file: ${e.message}")
+                } else {
+                    jsonError("Cannot open file: ${result.exceptionOrNull()?.message}")
                 }
             }
 
@@ -289,13 +302,13 @@ object DaemonApi {
                 }.getOrElse { return@post jsonError("Invalid request body") }
                 val item = runBlocking { svc.getItem(req.id) }
                 if (item == null) return@post jsonError("Download #${req.id} not found")
-                val folder = java.io.File(item.folder)
+                val folder = File(item.folder)
                 if (!folder.exists()) return@post jsonError("Folder not found: ${folder.absolutePath}")
-                try {
-                    java.awt.Desktop.getDesktop().open(folder)
+                val result = openFolderWithSystem(folder)
+                if (result.isSuccess) {
                     MyResponse.Text(jsonSuccess("Opened folder ${folder.absolutePath}"))
-                } catch (e: Exception) {
-                    jsonError("Cannot open folder: ${e.message}")
+                } else {
+                    jsonError("Cannot open folder: ${result.exceptionOrNull()?.message}")
                 }
             }
 
@@ -358,8 +371,8 @@ object DaemonApi {
                         appSettings.syncDownloadSettings(downloadSettings)
                         MyResponse.Text(jsonSuccess("${req.key} = ${req.value}"))
                     }
-                    ConfigResult.UnknownKey -> jsonError("Unknown config key: ${req.key}")
-                    ConfigResult.InvalidValue -> jsonError("Invalid value for ${req.key}: ${req.value}")
+                    ConfigResult.UnknownKey -> return@post jsonError("Unknown config key: ${req.key}")
+                    ConfigResult.InvalidValue -> return@post jsonError("Invalid value for ${req.key}: ${req.value}")
                 }
             }
         }
@@ -474,6 +487,14 @@ object DaemonApi {
     data class RemoveRequest(val ids: List<Long>, val keepFile: Boolean? = null)
 
     @Serializable
+    data class QueueItem(
+        val id: Long,
+        val name: String,
+        val queueItems: List<Long> = emptyList(),
+        val isQueueActive: Boolean = false,
+    )
+
+    @Serializable
     data class AddRequest(
         val url: String,
         val name: String? = null,
@@ -574,5 +595,32 @@ object DaemonApi {
     private object ListSerializer {
         fun <T> serializer(elementSerializer: kotlinx.serialization.KSerializer<T>) =
             kotlinx.serialization.builtins.ListSerializer(elementSerializer)
+    }
+
+    // --- Platform file-open helpers (no java.awt.Desktop — headless-safe) ---
+
+    /**
+     * Open a file with the system default application.
+     * Uses platform-specific commands to avoid java.awt.Desktop (which requires a display).
+     */
+    private fun openFileWithSystem(file: File): Result<Unit> = runCatching {
+        val os = System.getProperty("os.name").lowercase()
+        when {
+            os.contains("win") -> ProcessBuilder("rundll32", "url.dll,FileProtocolHandler", file.absolutePath).start().waitFor()
+            os.contains("mac") -> ProcessBuilder("open", file.absolutePath).start().waitFor()
+            else -> ProcessBuilder("xdg-open", file.absolutePath).start().waitFor()
+        }
+    }
+
+    /**
+     * Open a folder in the system file manager.
+     */
+    private fun openFolderWithSystem(folder: File): Result<Unit> = runCatching {
+        val os = System.getProperty("os.name").lowercase()
+        when {
+            os.contains("win") -> ProcessBuilder("explorer.exe", folder.absolutePath).start().waitFor()
+            os.contains("mac") -> ProcessBuilder("open", folder.absolutePath).start().waitFor()
+            else -> ProcessBuilder("xdg-open", folder.absolutePath).start().waitFor()
+        }
     }
 }

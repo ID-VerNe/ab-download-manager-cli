@@ -87,16 +87,50 @@ class ConfigSetCommand : CliktCommand(
     }
 
     private fun runDirect(term: Terminal) {
+        // Validate value before applying
+        fun fail(message: String): Nothing {
+            term.println((TextColors.red)("Error: $message"))
+            throw IllegalArgumentException(message)
+        }
+
         val result = try {
             when (key) {
-                "threadCount" -> appSettings.setThreadCount(value.toInt())
-                "maxConcurrentDownloads" -> appSettings.setMaxConcurrentDownloads(value.toInt())
-                "maxDownloadRetryCount" -> appSettings.setMaxDownloadRetryCount(value.toInt())
-                "dynamicPartCreation" -> appSettings.setDynamicPartCreation(value.toBoolean())
-                "useServerLastModifiedTime" -> appSettings.setUseServerLastModifiedTime(value.toBoolean())
-                "appendExtensionToIncompleteDownloads" -> appSettings.setAppendExtensionToIncompleteDownloads(value.toBoolean())
-                "useSparseFileAllocation" -> appSettings.setUseSparseFileAllocation(value.toBoolean())
-                "speedLimit" -> appSettings.setSpeedLimit(value.toLong())
+                "threadCount" -> {
+                    val v = value.toIntOrNull() ?: fail("threadCount must be an integer")
+                    if (v !in 1..64) fail("threadCount must be between 1 and 64")
+                    appSettings.setThreadCount(v)
+                }
+                "maxConcurrentDownloads" -> {
+                    val v = value.toIntOrNull() ?: fail("maxConcurrentDownloads must be an integer")
+                    if (v !in 1..50) fail("maxConcurrentDownloads must be between 1 and 50")
+                    appSettings.setMaxConcurrentDownloads(v)
+                }
+                "maxDownloadRetryCount" -> {
+                    val v = value.toIntOrNull() ?: fail("maxDownloadRetryCount must be an integer")
+                    if (v !in 0..99) fail("maxDownloadRetryCount must be between 0 and 99")
+                    appSettings.setMaxDownloadRetryCount(v)
+                }
+                "dynamicPartCreation" -> {
+                    val v = value.toBooleanStrictOrNull() ?: fail("dynamicPartCreation must be true or false")
+                    appSettings.setDynamicPartCreation(v)
+                }
+                "useServerLastModifiedTime" -> {
+                    val v = value.toBooleanStrictOrNull() ?: fail("useServerLastModifiedTime must be true or false")
+                    appSettings.setUseServerLastModifiedTime(v)
+                }
+                "appendExtensionToIncompleteDownloads" -> {
+                    val v = value.toBooleanStrictOrNull() ?: fail("appendExtensionToIncompleteDownloads must be true or false")
+                    appSettings.setAppendExtensionToIncompleteDownloads(v)
+                }
+                "useSparseFileAllocation" -> {
+                    val v = value.toBooleanStrictOrNull() ?: fail("useSparseFileAllocation must be true or false")
+                    appSettings.setUseSparseFileAllocation(v)
+                }
+                "speedLimit" -> {
+                    val v = value.toLongOrNull() ?: fail("speedLimit must be a number")
+                    if (v !in 0..1_000_000_000) fail("speedLimit must be between 0 and 1000000000")
+                    appSettings.setSpeedLimit(v)
+                }
                 "defaultDownloadFolder" -> appSettings.setDefaultDownloadFolder(value)
                 "userAgent" -> appSettings.setUserAgent(value)
                 else -> {
@@ -106,6 +140,8 @@ class ConfigSetCommand : CliktCommand(
                 }
             }
             true
+        } catch (_: IllegalArgumentException) {
+            false
         } catch (e: Exception) {
             term.println((TextColors.red)("Error: ${e.message}"))
             false

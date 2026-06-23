@@ -58,25 +58,33 @@ class OpenCommand : CliktCommand(
             term.println((TextColors.yellow)("File not found: ${file.absolutePath}"))
             return
         }
-        try {
-            java.awt.Desktop.getDesktop().open(file)
-            term.println((TextColors.green)("Opened: ${file.name}"))
-        } catch (e: Exception) {
-            // Fallback: platform-specific commands
-            try {
-                val os = System.getProperty("os.name").lowercase()
-                val process = when {
-                    os.contains("win") -> ProcessBuilder("rundll32", "url.dll,FileProtocolHandler", file.absolutePath).start()
-                    os.contains("mac") -> ProcessBuilder("open", file.absolutePath).start()
-                    else -> ProcessBuilder("xdg-open", file.absolutePath).start()
-                }
-                process.waitFor()
-                term.println((TextColors.green)("Opened: ${file.name}"))
-            } catch (e2: Exception) {
-                term.println((TextColors.red)("Cannot open file: ${e2.message}"))
-                term.println((TextColors.blue)("File path: ${file.absolutePath}"))
+        // Open via platform-specific command (headless-safe)
+        openWithSystem(file, isFolder = false, term = term)
+    }
+}
+
+/**
+ * Open a file or folder using platform-specific commands.
+ * Headless-safe — does not use java.awt.Desktop.
+ */
+private fun openWithSystem(target: File, isFolder: Boolean, term: Terminal) {
+    val name = if (isFolder) "folder" else "file"
+    try {
+        val os = System.getProperty("os.name").lowercase()
+        val process = when {
+            os.contains("win") -> {
+                if (isFolder) ProcessBuilder("explorer.exe", target.absolutePath).start()
+                else ProcessBuilder("rundll32", "url.dll,FileProtocolHandler", target.absolutePath).start()
             }
+            os.contains("mac") -> ProcessBuilder("open", target.absolutePath).start()
+            else -> ProcessBuilder("xdg-open", target.absolutePath).start()
         }
+        process.waitFor()
+        val label = if (isFolder) target.absolutePath else target.name
+        term.println((TextColors.green)("Opened $name: $label"))
+    } catch (e: Exception) {
+        term.println((TextColors.red)("Cannot open $name: ${e.message}"))
+        term.println((TextColors.blue)("Path: ${target.absolutePath}"))
     }
 }
 
@@ -122,23 +130,6 @@ class OpenFolderCommand : CliktCommand(
             term.println((TextColors.yellow)("Folder not found: ${folder.absolutePath}"))
             return
         }
-        try {
-            java.awt.Desktop.getDesktop().open(folder)
-            term.println((TextColors.green)("Opened folder: ${folder.absolutePath}"))
-        } catch (e: Exception) {
-            try {
-                val os = System.getProperty("os.name").lowercase()
-                val process = when {
-                    os.contains("win") -> ProcessBuilder("explorer.exe", folder.absolutePath).start()
-                    os.contains("mac") -> ProcessBuilder("open", folder.absolutePath).start()
-                    else -> ProcessBuilder("xdg-open", folder.absolutePath).start()
-                }
-                process.waitFor()
-                term.println((TextColors.green)("Opened folder: ${folder.absolutePath}"))
-            } catch (e2: Exception) {
-                term.println((TextColors.red)("Cannot open folder: ${e2.message}"))
-                term.println((TextColors.blue)("Folder path: ${folder.absolutePath}"))
-            }
-        }
+        openWithSystem(folder, isFolder = true, term = term)
     }
 }

@@ -67,7 +67,10 @@ class ListCommand : CliktCommand(
         }
 
         val items = try {
-            Json { ignoreUnknownKeys = true }.decodeFromString<JsonArray>(response)
+            // /api/list now returns {"success":true,"data":[...],"error":null}
+            val envelope = Json { ignoreUnknownKeys = true }.decodeFromString<JsonObject>(response)
+            envelope["data"]?.jsonArray
+                ?: Json { ignoreUnknownKeys = true }.decodeFromString<JsonArray>(response)
         } catch (_: Exception) {
             term.println((TextColors.red)("Failed to parse daemon response"))
             return

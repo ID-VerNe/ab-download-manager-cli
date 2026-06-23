@@ -21,7 +21,7 @@ class CliDownloadService(
     private val queueManager: QueueManager,
     private val paths: CliPaths,
 ) {
-    private var booted = false
+    @Volatile private var booted = false
 
     /** Initialize the download engine: boot the DB, resume pending downloads, etc. */
     fun boot() {
@@ -103,6 +103,11 @@ class CliDownloadService(
     /** Start a queue by ID */
     fun startQueue(queueId: Long) {
         queueManager.getQueue(queueId).start()
+    }
+
+    /** Stop a queue by ID */
+    fun stopQueue(queueId: Long) {
+        runBlocking { queueManager.getQueue(queueId).stopAsync() }
     }
 
     /** Get the main queue ID */

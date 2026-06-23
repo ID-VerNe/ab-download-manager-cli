@@ -22,6 +22,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
+import java.net.URI
 import java.text.DecimalFormat
 import kotlin.math.roundToLong
 import kotlin.time.Duration.Companion.milliseconds
@@ -117,6 +118,16 @@ class AddCommand : CliktCommand(
             val itemName = fileName ?: url.substringAfterLast("/").substringBefore("?").ifEmpty {
                 "download_${System.currentTimeMillis()}"
             }
+
+            // Validate URL scheme
+            val urlScheme = runCatching { URI(url).scheme?.lowercase() }.getOrDefault("")
+            if (urlScheme !in listOf("http", "https", "ftp", "ftps", "")) {
+                if (!quiet) {
+                    term.println((TextColors.yellow)("! Skipping $url: unsupported scheme '$urlScheme'"))
+                }
+                continue
+            }
+
             try {
                 val response = daemonClient.addDownload(
                     url = url,
@@ -168,6 +179,16 @@ class AddCommand : CliktCommand(
             val itemName = fileName ?: url.substringAfterLast("/").substringBefore("?").ifEmpty {
                 "download_${System.currentTimeMillis()}"
             }
+
+            // Validate URL scheme
+            val urlScheme = runCatching { URI(url).scheme?.lowercase() }.getOrDefault("")
+            if (urlScheme !in listOf("http", "https", "ftp", "ftps", "")) {
+                if (!quiet) {
+                    term.println((TextColors.yellow)("! Skipping $url: unsupported scheme '$urlScheme'"))
+                }
+                continue
+            }
+
             try {
                 val strategy = when (duplicate?.lowercase()) {
                     "override" -> OnDuplicateStrategy.OverrideDownload
@@ -276,7 +297,7 @@ class AddCommand : CliktCommand(
 
                     val progress = if (total > 0) {
                         (downloaded * 100.0 / total).let { if (it > 100.0) 100.0 else it }
-                    } else 0.0
+                    } else -1.0
 
                     val eta = if (speed > 0 && total > downloaded) {
                         formatDuration(((total - downloaded) * 1000 / speed).toLong())
@@ -284,12 +305,14 @@ class AddCommand : CliktCommand(
 
                     // Render progress bar
                     val barWidth = 30
-                    val filled = (progress / 100.0 * barWidth).roundToLong().toInt()
-                    val bar = "█".repeat(filled) + "░".repeat((barWidth - filled).coerceAtLeast(0))
+                    val bar = if (total > 0) {
+                        val filled = (progress / 100.0 * barWidth).roundToLong().toInt().coerceIn(0, barWidth)
+                        "█".repeat(filled) + "░".repeat(barWidth - filled)
+                    } else "░".repeat(barWidth)
 
                     term.print("\r" + " ".repeat(120))
                     val nameStr = item.name.take(40).padEnd(40)
-                    val pctStr = "%.1f%%".format(progress).padStart(7)
+                    val pctStr = if (total > 0) "%.1f%%".format(progress).padStart(7) else "  ?.?.%"
                     val statsStr = " $bar $pctStr ${formatSize(downloaded)}/${formatSize(displayTotal)} ${formatSize(speed)}/s ETA $eta"
                     term.print("\r" + " ".repeat(120))
                     term.print("\r" + TextColors.cyan(nameStr) + TextColors.brightWhite(statsStr))

@@ -7,7 +7,11 @@ import java.io.File
  * under the shared data directory.
  */
 class DaemonPaths(dataDir: File) {
-    val daemonDir: File = File(dataDir, "daemon").also { it.mkdirs() }
+    val daemonDir: File = File(dataDir, "daemon").also {
+        if (!it.exists() && !it.mkdirs()) {
+            throw java.io.IOException("Failed to create daemon directory: ${it.absolutePath}")
+        }
+    }
     val portFile: File = File(daemonDir, "daemon.port")
     val lockFile: File = File(daemonDir, "daemon.lock")
 }

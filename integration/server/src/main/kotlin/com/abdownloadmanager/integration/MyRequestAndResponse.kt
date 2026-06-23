@@ -45,9 +45,9 @@ typealias Handler = (MyRequest) -> MyResponse
 
 
 class HandlerMap {
-    private val handlers = mutableListOf<Pair<String, Handler>>()
+    private val handlers = mutableListOf<Triple<String, String, Handler>>()
     private fun add(uri: String, method: String, handler: Handler) {
-        handlers.add(Pair(uri, handler))
+        handlers.add(Triple(uri, method, handler))
     }
     fun get(uri: String,handler: Handler){
         add(uri,"GET",handler)
@@ -59,8 +59,8 @@ class HandlerMap {
 
     fun findMatch(session: MyRequest): Handler? {
         val handler = handlers.find {
-            session.uri == it.first
-        }?.second
+            session.uri == it.first && session.method == it.second
+        }?.third
         return handler
     }
 }

@@ -38,46 +38,67 @@ class DaemonClient(private val dataDir: File) {
 
     /**
      * Send an HTTP POST with JSON body and return the response body.
+     * Retries up to 2 times with exponential backoff on connection failure.
      */
     private fun post(path: String, jsonBody: String, timeout: Int = 10000): String? {
         val port = readPort() ?: return null
-        return try {
-            val url = URI("http://localhost:$port$path").toURL()
-            val conn = url.openConnection() as HttpURLConnection
-            conn.requestMethod = "POST"
-            conn.doOutput = true
-            conn.connectTimeout = timeout
-            conn.readTimeout = timeout
-            conn.setRequestProperty("Content-Type", "application/json")
-            OutputStreamWriter(conn.outputStream).use { it.write(jsonBody) }
-            if (conn.responseCode in 200..299) {
-                conn.inputStream.bufferedReader().readText()
-            } else {
-                conn.errorStream?.bufferedReader()?.readText() ?: "null"
+        var lastException: Exception? = null
+        for (attempt in 0..2) {
+            try {
+                val url = URI("http://localhost:$port$path").toURL()
+                val conn = url.openConnection() as HttpURLConnection
+                conn.requestMethod = "POST"
+                conn.doOutput = true
+                conn.connectTimeout = timeout
+                conn.readTimeout = timeout
+                conn.setRequestProperty("Content-Type", "application/json")
+                OutputStreamWriter(conn.outputStream).use { it.write(jsonBody) }
+                val result = if (conn.responseCode in 200..299) {
+                    conn.inputStream.bufferedReader().readText()
+                } else {
+                    conn.errorStream?.bufferedReader()?.readText() ?: "null"
+                }
+                conn.disconnect()
+                return result
+            } catch (e: Exception) {
+                lastException = e
+                if (attempt < 2) {
+                    Thread.sleep((attempt + 1) * 500L)
+                }
             }
-        } catch (_: Exception) {
-            null
         }
+        // Log last exception at debug level — omitted since we have no logger
+        return null
     }
 
     /**
      * Send an HTTP GET and return the response body.
+     * Retries up to 2 times with exponential backoff on connection failure.
      */
     private fun get(path: String, timeout: Int = 10000): String? {
         val port = readPort() ?: return null
-        return try {
-            val url = URI("http://localhost:$port$path").toURL()
-            val conn = url.openConnection() as HttpURLConnection
-            conn.connectTimeout = timeout
-            conn.readTimeout = timeout
-            if (conn.responseCode in 200..299) {
-                conn.inputStream.bufferedReader().readText()
-            } else {
-                conn.errorStream?.bufferedReader()?.readText() ?: "null"
+        var lastException: Exception? = null
+        for (attempt in 0..2) {
+            try {
+                val url = URI("http://localhost:$port$path").toURL()
+                val conn = url.openConnection() as HttpURLConnection
+                conn.connectTimeout = timeout
+                conn.readTimeout = timeout
+                val result = if (conn.responseCode in 200..299) {
+                    conn.inputStream.bufferedReader().readText()
+                } else {
+                    conn.errorStream?.bufferedReader()?.readText() ?: "null"
+                }
+                conn.disconnect()
+                return result
+            } catch (e: Exception) {
+                lastException = e
+                if (attempt < 2) {
+                    Thread.sleep((attempt + 1) * 500L)
+                }
             }
-        } catch (_: Exception) {
-            null
         }
+        return null
     }
 
     /**
@@ -99,7 +120,8 @@ class DaemonClient(private val dataDir: File) {
 
     /** Send a shutdown signal to the daemon. */
     fun shutdown(): Boolean {
-        return post("/api/shutdown", "{}") != null
+        val response = post("/api/shutdown", "{}") ?: return false
+        return response.contains("\"success\":true")
     }
 
     /** Get daemon status (active/paused/completed counts). */
@@ -162,6 +184,9 @@ class DaemonClient(private val dataDir: File) {
 
     /** Start a queue by ID. */
     fun startQueue(queueId: Long): String? = post("/api/queue/start", """{"queueId":$queueId}""")
+
+    /** Stop a queue by ID. */
+    fun stopQueue(queueId: Long): String? = post("/api/queue/stop", """{"queueId":$queueId}""")
 
     /** Get all config from daemon (live reload). */
     fun getConfig(): String? = get("/api/config")

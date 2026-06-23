@@ -72,7 +72,9 @@ class CliPaths(
         }
 
         fun ensureDir(dir: File): File {
-            dir.mkdirs()
+            if (!dir.exists() && !dir.mkdirs()) {
+                throw java.io.IOException("Failed to create directory: ${dir.absolutePath}")
+            }
             return dir
         }
     }

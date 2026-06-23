@@ -123,19 +123,13 @@ private fun cliModule(paths: CliPaths, dataDir: File) = module {
         )
     }
 
-    // === TrustManager for SSL ===
+    // === TrustManager for SSL (system default — no trust-all) ===
     single<X509TrustManager> {
-        object : X509TrustManager {
-            override fun checkClientTrusted(
-                chain: Array<out java.security.cert.X509Certificate>?,
-                authType: String?
-            ) {}
-            override fun checkServerTrusted(
-                chain: Array<out java.security.cert.X509Certificate>?,
-                authType: String?
-            ) {}
-            override fun getAcceptedIssuers(): Array<java.security.cert.X509Certificate> = emptyArray()
-        }
+        val tmFactory = javax.net.ssl.TrustManagerFactory.getInstance(
+            javax.net.ssl.TrustManagerFactory.getDefaultAlgorithm()
+        )
+        tmFactory.init(null as java.security.KeyStore?)
+        tmFactory.trustManagers[0] as X509TrustManager
     }
 
     // === OkHttpClient ===
@@ -173,7 +167,10 @@ private fun cliModule(paths: CliPaths, dataDir: File) = module {
     // === User Agent ===
     single<UserAgentProvider> {
         object : UserAgentProvider {
-            override fun getUserAgent(): String = "ABDownloadManager-CLI/1.0"
+            override fun getUserAgent(): String {
+                val configured = get<CliAppSettings>().readUserAgent()
+                return configured.ifEmpty { "ABDownloadManager-CLI/1.0" }
+            }
         }
     }
 
@@ -199,7 +196,7 @@ private fun cliModule(paths: CliPaths, dataDir: File) = module {
     single {
         EmptyFileCreator(
             diskStat = get(),
-            useSparseFile = { false }
+            useSparseFile = { get<DownloadSettings>().useSparseFileAllocation }
         )
     }
 
