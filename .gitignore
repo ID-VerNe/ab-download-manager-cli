@@ -9,3 +9,10 @@ local.properties
 
 # Ignore android keystores
 *.jks
+
+# Ignore plan/task tracking files
+.plan/
+
+# Ignore test download artifacts
+*.dat
+*.m3u8

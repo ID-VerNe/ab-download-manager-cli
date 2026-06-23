@@ -1,8 +1,10 @@
 Unicode True
+SilentInstall normal
 RequestExecutionLevel user
 SetCompressor /SOLID lzma
 !include "LogicLib.nsh"
 !include "MUI2.nsh"
+!include "Sections.nsh"
 
 
 !define APP_PUBLISHER "{{ app_publisher }}"
@@ -63,10 +65,18 @@ InstallDir "$LOCALAPPDATA\${APP_NAME}"
 
 
 !define INSTALL_DIR `$INSTDIR`
+
+; Section index constants for programmatic access
+!define SecApp 0
+!define SecStartMenu 1
+!define SecDesktopShortcut 2
+
 Function .onInit
-
-    ; Call RestorePreviousInstallLocation
-
+    ; In silent mode, explicitly select all sections
+    ${If} ${Silent}
+        SectionSetFlags ${SecStartMenu} ${SF_SELECTED}
+        SectionSetFlags ${SecDesktopShortcut} ${SF_SELECTED}
+    ${EndIf}
 FunctionEnd
 
 ; configure instfiles page
@@ -76,14 +86,21 @@ FunctionEnd
 ; configure finish page
 !define MUI_FINISHPAGE_LINK "Open project in GitHub"
 !define MUI_FINISHPAGE_LINK_LOCATION "${SOURCE_CODE_URL}"
-!define MUI_FINISHPAGE_RUN
-!define MUI_FINISHPAGE_RUN_FUNCTION RunMainBinary
+
+; Helper: skip a welcome/finish page in silent mode
+Function pre_SkipIfSilent
+    ${If} ${Silent}
+        Abort
+    ${EndIf}
+FunctionEnd
 
 ;Installation Pages
+!define MUI_PAGE_CUSTOMFUNCTION_PRE pre_SkipIfSilent
 !insertmacro MUI_PAGE_WELCOME
 !insertmacro MUI_PAGE_LICENSE "${LICENSE_FILE}"
 !insertmacro MUI_PAGE_COMPONENTS
 !insertmacro MUI_PAGE_INSTFILES
+!define MUI_PAGE_CUSTOMFUNCTION_PRE pre_SkipIfSilent
 !insertmacro MUI_PAGE_FINISH
 
 ;Uninstallation Pages
@@ -115,27 +132,25 @@ FunctionEnd
     StrCpy ${result} "${MAIN_BINARY_NAME}.exe"
 !macroend
 
-; Function RestorePreviousInstallLocation
-;     ReadRegStr $4 SHCTX "${REG_APP_KEY}" "InstallPath"
-;     ${if} $4 != ""
-;         StrCpy $INSTDIR $4
-;     ${endif}
-; FunctionEnd
-
-; I should improve this.
+; closeApp -- kill running instances of the app
+; Uses ExecWait in normal mode (waits for confirmation).
+; Uses fire-and-forget Exec in silent mode to avoid any risk of hanging.
 !macro closeApp
     !insertmacro GetBestExecutableName $1
     DetailPrint "Stopping running instances of $1"
-    ; Get installer's own PID so we can exclude it from taskkill
     System::Call 'kernel32::GetCurrentProcessId() i.r2'
-    ; Kill all matching processes EXCEPT the installer itself
-    ExecWait 'taskkill /F /FI "PID ne $2" /IM "$1"' $0
-    ${If} $0 == "0"
-        Sleep 500
-        BringToFront
-        DetailPrint "Existing app stopped successfully"
+    ${IfNot} ${Silent}
+        ExecWait 'taskkill /F /FI "PID ne $2" /IM "$1"' $0
+        ${If} $0 == "0"
+            Sleep 500
+            DetailPrint "Existing app stopped successfully"
+        ${Else}
+            DetailPrint "No running instances found to stop"
+        ${Endif}
     ${Else}
-        DetailPrint "No running instances found to stop"
+        ; Silent mode: fire-and-forget - no ExecWait to avoid any hang risk
+        Exec 'taskkill /F /FI "PID ne $2" /IM "$1"'
+        Sleep 500
     ${Endif}
 !macroend
 
@@ -162,11 +177,7 @@ FunctionEnd
 !macroend
 
 Function .onInstSuccess
-    ; Check if the installer is running in silent mode
-    ${If} ${Silent}
-        ; In silent mode, always run the app
-        Call RunMainBinary
-    ${Endif}
+    ; Intentional no-op: silent mode must not auto-launch the GUI
 FunctionEnd
 
 Section "${APP_DISPLAY_NAME}"

@@ -1,6 +1,9 @@
 package com.abdownloadmanager.cli.di
 
+import com.abdownloadmanager.cli.daemon.CliIntegrationHandler
+import com.abdownloadmanager.cli.utils.CliAppSettings
 import com.abdownloadmanager.cli.utils.CliPaths
+import com.abdownloadmanager.integration.IntegrationHandler
 import ir.amirab.downloader.DownloadManager
 import ir.amirab.downloader.DownloadManagerMinimalControl
 import ir.amirab.downloader.DownloadSettings
@@ -268,5 +271,15 @@ private fun cliModule(paths: CliPaths, dataDir: File) = module {
     // === CLI-specific Download Service ===
     single {
         CliDownloadService(get(), get(), get())
+    }
+
+    // === CLI App Settings (shared with desktop) ===
+    single {
+        CliAppSettings(paths.appSettingsFile)
+    }
+
+    // === Integration Handler (daemon endpoint bridge) ===
+    single<IntegrationHandler> {
+        CliIntegrationHandler(get(), get())
     }
 }

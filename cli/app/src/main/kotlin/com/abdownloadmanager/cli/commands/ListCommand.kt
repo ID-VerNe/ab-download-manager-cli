@@ -1,5 +1,7 @@
 package com.abdownloadmanager.cli.commands
 
+import com.abdownloadmanager.cli.daemon.DaemonClient
+import com.abdownloadmanager.cli.daemon.DaemonHelper
 import com.abdownloadmanager.cli.di.CliDownloadService
 import com.github.ajalt.clikt.core.CliktCommand
 import com.github.ajalt.clikt.parameters.options.*
@@ -11,6 +13,10 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonPrimitive
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 
@@ -40,8 +46,64 @@ class ListCommand : CliktCommand(
 
     override fun run() = runBlocking {
         val term = Terminal()
-        downloadService.boot()
 
+        // Auto-detect daemon mode
+        val daemonClient = DaemonHelper.daemonClient()
+        if (daemonClient != null) {
+            runWithDaemon(term, daemonClient)
+            return@runBlocking
+        }
+
+        // Direct mode
+        downloadService.boot()
+        runDirect(term)
+    }
+
+    private fun runWithDaemon(term: Terminal, daemonClient: DaemonClient) {
+        val response = daemonClient.listDownloads()
+        if (response == null) {
+            term.println((TextColors.red)("Failed to communicate with daemon"))
+            return
+        }
+
+        val items = try {
+            Json { ignoreUnknownKeys = true }.decodeFromString<JsonArray>(response)
+        } catch (_: Exception) {
+            term.println((TextColors.red)("Failed to parse daemon response"))
+            return
+        }
+
+        val filteredItems = if (all) items else items.filter { itemObj ->
+            val status = (itemObj as JsonObject)["status"]?.jsonPrimitive?.content ?: ""
+            status != "Completed"
+        }
+
+        if (filteredItems.isEmpty()) {
+            if (json) {
+                term.println("[]")
+            } else {
+                term.println((TextColors.yellow)("No downloads found."))
+            }
+            return
+        }
+
+        if (json) {
+            term.println(Json { prettyPrint = true }.encodeToString(filteredItems))
+        } else {
+            DaemonHelper.printTableHeader(term)
+            for (itemObj in filteredItems) {
+                val obj = itemObj as JsonObject
+                val id = obj["id"]?.jsonPrimitive?.content?.toLongOrNull() ?: 0L
+                val name = obj["name"]?.jsonPrimitive?.content ?: "?"
+                val status = obj["status"]?.jsonPrimitive?.content ?: "Unknown"
+                val size = obj["sizeFormatted"]?.jsonPrimitive?.content ?: "?"
+                DaemonHelper.printTableRow(term, id, name, status, size)
+            }
+            DaemonHelper.printTableFooter(term, filteredItems.size)
+        }
+    }
+
+    private fun runDirect(term: Terminal) {
         val items = if (all) {
             downloadService.getAllItems()
         } else {
@@ -54,45 +116,30 @@ class ListCommand : CliktCommand(
             } else {
                 term.println((TextColors.yellow)("No downloads found."))
             }
-            return@runBlocking
+            return
         }
 
         if (json) {
             val jsonItems = items.map { it.toDownloadJsonItem() }
             term.println(Json { prettyPrint = true }.encodeToString(jsonItems))
         } else {
-            term.println((TextColors.brightBlue)("┌──────┬──────────────────────────────────────┬──────────────┬──────────────┐"))
-            term.println((TextColors.brightBlue)("│ ${"ID".padEnd(4)} │ ${"Name".padEnd(36)} │ ${"Status".padEnd(12)} │ ${"Size".padEnd(12)} │"))
-            term.println((TextColors.brightBlue)("├──────┼──────────────────────────────────────┼──────────────┼──────────────┤"))
-
+            DaemonHelper.printTableHeader(term)
             for (item in items) {
-                val name = item.name.take(36)
                 val status = when (item.status) {
                     DownloadStatus.Downloading -> "Downloading"
                     DownloadStatus.Paused -> "Paused"
-                    DownloadStatus.Completed -> (TextColors.green)("Completed")
-                    DownloadStatus.Error -> (TextColors.red)("Error")
-                    DownloadStatus.Added -> "Queued"
+                    DownloadStatus.Completed -> "Completed"
+                    DownloadStatus.Error -> "Error"
+                    DownloadStatus.Added -> "Added"
                 }
                 val size = if (item.contentLength > 0) {
                     formatSize(item.contentLength)
                 } else {
                     "?"
                 }
-
-                term.print((TextColors.brightBlue)("│ "))
-                term.print(item.id.toString().padEnd(4))
-                term.print((TextColors.brightBlue)(" │ "))
-                term.print(name.padEnd(36))
-                term.print((TextColors.brightBlue)(" │ "))
-                term.print(status.toString().padEnd(12))
-                term.print((TextColors.brightBlue)(" │ "))
-                term.print(size.padEnd(12))
-                term.println((TextColors.brightBlue)(" │"))
+                DaemonHelper.printTableRow(term, item.id, item.name, status, size)
             }
-
-            term.println((TextColors.brightBlue)("└──────┴──────────────────────────────────────┴──────────────┴──────────────┘"))
-            term.println("Total: ${items.size} download(s)")
+            DaemonHelper.printTableFooter(term, items.size)
         }
     }
 

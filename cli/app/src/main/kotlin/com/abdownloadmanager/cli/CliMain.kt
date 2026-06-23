@@ -1,7 +1,11 @@
 package com.abdownloadmanager.cli
 
 import com.abdownloadmanager.cli.commands.*
+import com.abdownloadmanager.cli.tui.MonitorCommand
 import com.abdownloadmanager.cli.daemon.DaemonCommand
+import com.abdownloadmanager.cli.daemon.DaemonStartCommand
+import com.abdownloadmanager.cli.daemon.DaemonStatusCommand
+import com.abdownloadmanager.cli.daemon.DaemonStopCommand
 import com.abdownloadmanager.cli.di.CliDi
 import com.abdownloadmanager.cli.utils.CliAppInfo
 import com.abdownloadmanager.cli.utils.CliPaths
@@ -50,6 +54,9 @@ fun main(args: Array<String>) {
             PauseCommand(),
             ResumeCommand(),
             RemoveCommand(),
+            RestartCommand(),
+            PauseAllCommand(),
+            MonitorCommand(),
             QueueCommand().subcommands(
                 QueueListCommand(),
                 QueueStartCommand(),
@@ -58,7 +65,21 @@ fun main(args: Array<String>) {
             CategoryCommand().subcommands(
                 CategoryListCommand(),
             ),
-            DaemonCommand(),
+            ConfigCommand().subcommands(
+                ConfigGetCommand(),
+                ConfigSetCommand(),
+                ConfigListCommand(),
+            ),
+            DaemonCommand().subcommands(
+                DaemonStartCommand(),
+                DaemonStopCommand(),
+                DaemonStatusCommand(),
+            ),
+            OpenCommand(),
+            OpenFolderCommand(),
+            ChecksumCommand(),
+            EditCommand(),
+            CompletionCommand(),
         )
 
         app.main(args)

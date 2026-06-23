@@ -32,6 +32,9 @@ class CliPaths(
     /** Categories */
     val categoriesFile: File = File(downloadDbDir, "categories/categories.json")
 
+    /** App settings (shared with desktop) */
+    val appSettingsFile: File = File(configDirFile, "appSettings.json")
+
     companion object {
         /**
          * Detect the desktop app's data directory.

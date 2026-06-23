@@ -57,6 +57,17 @@ class CliDownloadService(
         )
     }
 
+    /** Restart (reset) a download — clears downloaded data and restarts */
+    suspend fun restartDownload(id: Long) {
+        downloadManager.reset(id, context = ResumedBy(User))
+        downloadManager.startJob(id, ResumedBy(User))
+    }
+
+    /** Pause all active downloads */
+    suspend fun pauseAll() {
+        downloadManager.stopAll(StoppedBy(User))
+    }
+
     /** Get all download items */
     fun getAllItems(): List<IDownloadItem> {
         return runBlocking { downloadManager.dlListDb.getAll() }
@@ -82,5 +93,25 @@ class CliDownloadService(
     /** Add a download to a queue */
     suspend fun addToQueue(queueId: Long, downloadId: Long) {
         queueManager.addToQueue(queueId, downloadId)
+    }
+
+    /** Get all queues */
+    fun getQueues(): List<ir.amirab.downloader.queue.DownloadQueue> {
+        return queueManager.getAll()
+    }
+
+    /** Start a queue by ID */
+    fun startQueue(queueId: Long) {
+        queueManager.getQueue(queueId).start()
+    }
+
+    /** Get the main queue ID */
+    fun getMainQueueId(): Long {
+        return queueManager.getMainQueue().id
+    }
+
+    /** Update a download item's properties in-place. */
+    suspend fun updateDownloadItem(id: Long, updater: (IDownloadItem) -> Unit) {
+        downloadManager.updateDownloadItem(id, null, updater)
     }
 }

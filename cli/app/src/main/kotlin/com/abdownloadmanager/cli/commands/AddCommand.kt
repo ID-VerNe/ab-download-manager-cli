@@ -1,5 +1,7 @@
 package com.abdownloadmanager.cli.commands
 
+import com.abdownloadmanager.cli.daemon.DaemonHelper
+import com.abdownloadmanager.cli.daemon.DaemonClient
 import com.abdownloadmanager.cli.di.CliDownloadService
 import com.github.ajalt.clikt.core.CliktCommand
 import com.github.ajalt.clikt.parameters.arguments.argument
@@ -91,8 +93,74 @@ class AddCommand : CliktCommand(
 
     override fun run() = runBlocking {
         val term = Terminal()
-        downloadService.boot()
 
+        // Auto-detect daemon mode
+        val daemonClient = DaemonHelper.daemonClient()
+        if (daemonClient != null) {
+            runWithDaemon(term, daemonClient)
+            return@runBlocking
+        }
+
+        // Direct mode (daemon not running)
+        downloadService.boot()
+        runDirect(term)
+    }
+
+    /**
+     * Daemon mode: forward add requests via HTTP.
+     */
+    private suspend fun runWithDaemon(term: Terminal, daemonClient: DaemonClient) {
+        var successCount = 0
+
+        for (url in urls) {
+            val folder = outputDir ?: System.getProperty("user.dir")
+            val itemName = fileName ?: url.substringAfterLast("/").substringBefore("?").ifEmpty {
+                "download_${System.currentTimeMillis()}"
+            }
+            try {
+                val response = daemonClient.addDownload(
+                    url = url,
+                    name = fileName,
+                    folder = outputDir,
+                    username = username,
+                    password = password,
+                    connections = connections,
+                    speedLimit = speedLimit,
+                    duplicate = duplicate,
+                    start = start || detach,
+                    queueId = queue,
+                )
+                if (DaemonHelper.isSuccess(response)) {
+                    successCount++
+                    if (!quiet) {
+                        if (start && detach) {
+                            term.println((TextColors.green)("✓") + " Started download: $itemName (background, via daemon)")
+                        } else if (start) {
+                            term.println((TextColors.green)("✓") + " Added download: $itemName (via daemon)")
+                        } else {
+                            term.println((TextColors.green)("✓") + " Added download: $itemName (via daemon)")
+                        }
+                    }
+                } else {
+                    val err = DaemonHelper.getError(response) ?: "Unknown error"
+                    term.println((TextColors.red)("✗") + " $url: $err")
+                }
+            } catch (e: Exception) {
+                if (!quiet) {
+                    term.println((TextColors.red)("✗") + " Failed to add $url: ${e.message}")
+                }
+            }
+        }
+
+        if (!quiet && successCount > 0) {
+            term.println((TextColors.green)("Successfully added $successCount download(s) via daemon"))
+        }
+    }
+
+    /**
+     * Direct mode: existing behavior with local engine.
+     */
+    private suspend fun runDirect(term: Terminal) {
         var successCount = 0
 
         for (url in urls) {

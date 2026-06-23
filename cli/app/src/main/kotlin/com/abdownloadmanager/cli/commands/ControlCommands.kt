@@ -1,5 +1,7 @@
 package com.abdownloadmanager.cli.commands
 
+import com.abdownloadmanager.cli.daemon.DaemonClient
+import com.abdownloadmanager.cli.daemon.DaemonHelper
 import com.abdownloadmanager.cli.di.CliDownloadService
 import com.github.ajalt.clikt.core.CliktCommand
 import com.github.ajalt.clikt.parameters.arguments.argument
@@ -34,21 +36,50 @@ data class DownloadInfoJsonItem(
     val checksum: String?,
 )
 
-class PauseCommand : CliktCommand(
-    name = "pause",
-    help = "Pause one or more downloads"
-), KoinComponent {
-    private val downloadService: CliDownloadService by inject()
+/**
+ * Base class for control commands (pause/resume/remove) that share the
+ * daemon detection pattern.
+ */
+abstract class BaseControlCommand(
+    name: String,
+    help: String,
+) : CliktCommand(name = name, help = help), KoinComponent {
+    protected val downloadService: CliDownloadService by inject()
 
-    private val ids: List<Long> by argument(
-        help = "Download ID(s) to pause"
+    protected val ids: List<Long> by argument(
+        help = "Download ID(s)"
     ).long().multiple()
 
-    override fun run() = runBlocking {
+    final override fun run() = runBlocking {
         val term = Terminal()
-        downloadService.boot()
-        var count = 0
+        val daemonClient = DaemonHelper.daemonClient()
+        if (daemonClient != null) {
+            runWithDaemon(term, daemonClient)
+        } else {
+            downloadService.boot()
+            runDirect(term)
+        }
+    }
 
+    protected abstract suspend fun runWithDaemon(term: Terminal, client: DaemonClient)
+    protected abstract suspend fun runDirect(term: Terminal)
+}
+
+class PauseCommand : BaseControlCommand(
+    name = "pause",
+    help = "Pause one or more downloads"
+) {
+    override suspend fun runWithDaemon(term: Terminal, client: DaemonClient) {
+        val response = client.pauseDownload(ids)
+        if (DaemonHelper.isSuccess(response)) {
+            term.println((TextColors.green)("Paused ${ids.size} download(s) via daemon"))
+        } else {
+            term.println((TextColors.red)("Failed: ${DaemonHelper.getError(response)}"))
+        }
+    }
+
+    override suspend fun runDirect(term: Terminal) {
+        var count = 0
         for (id in ids) {
             val item = downloadService.getItem(id)
             if (item == null) {
@@ -59,28 +90,27 @@ class PauseCommand : CliktCommand(
             term.println("(${(TextColors.yellow)("i")}) Paused #$id: ${item.name}")
             count++
         }
-
         if (count > 0) {
             term.println((TextColors.green)("Paused $count download(s)"))
         }
     }
 }
 
-class ResumeCommand : CliktCommand(
+class ResumeCommand : BaseControlCommand(
     name = "resume",
     help = "Resume one or more downloads"
-), KoinComponent {
-    private val downloadService: CliDownloadService by inject()
+) {
+    override suspend fun runWithDaemon(term: Terminal, client: DaemonClient) {
+        val response = client.resumeDownload(ids)
+        if (DaemonHelper.isSuccess(response)) {
+            term.println((TextColors.green)("Resumed ${ids.size} download(s) via daemon"))
+        } else {
+            term.println((TextColors.red)("Failed: ${DaemonHelper.getError(response)}"))
+        }
+    }
 
-    private val ids: List<Long> by argument(
-        help = "Download ID(s) to resume"
-    ).long().multiple()
-
-    override fun run() = runBlocking {
-        val term = Terminal()
-        downloadService.boot()
+    override suspend fun runDirect(term: Terminal) {
         var count = 0
-
         for (id in ids) {
             val item = downloadService.getItem(id)
             if (item == null) {
@@ -91,30 +121,29 @@ class ResumeCommand : CliktCommand(
             term.println("(${(TextColors.green)("+")}) Resumed #$id: ${item.name}")
             count++
         }
-
         if (count > 0) {
             term.println((TextColors.green)("Resumed $count download(s)"))
         }
     }
 }
 
-class RemoveCommand : CliktCommand(
+class RemoveCommand : BaseControlCommand(
     name = "remove",
     help = "Remove one or more downloads"
-), KoinComponent {
-    private val downloadService: CliDownloadService by inject()
-
-    private val ids: List<Long> by argument(
-        help = "Download ID(s) to remove"
-    ).long().multiple()
-
+) {
     private val keepFile: Boolean by option("--keep-file", "-k", help = "Keep the downloaded file").flag()
 
-    override fun run() = runBlocking {
-        val term = Terminal()
-        downloadService.boot()
-        var count = 0
+    override suspend fun runWithDaemon(term: Terminal, client: DaemonClient) {
+        val response = client.removeDownload(ids, keepFile = keepFile)
+        if (DaemonHelper.isSuccess(response)) {
+            term.println((TextColors.green)("Removed ${ids.size} download(s) via daemon"))
+        } else {
+            term.println((TextColors.red)("Failed: ${DaemonHelper.getError(response)}"))
+        }
+    }
 
+    override suspend fun runDirect(term: Terminal) {
+        var count = 0
         for (id in ids) {
             val item = downloadService.getItem(id)
             if (item == null) {
@@ -125,9 +154,63 @@ class RemoveCommand : CliktCommand(
             term.println("(${(TextColors.red)("-")}) Removed #$id: ${item.name}")
             count++
         }
-
         if (count > 0) {
             term.println((TextColors.green)("Removed $count download(s)"))
+        }
+    }
+}
+
+class RestartCommand : BaseControlCommand(
+    name = "restart",
+    help = "Restart (re-download) one or more downloads"
+) {
+    override suspend fun runWithDaemon(term: Terminal, client: DaemonClient) {
+        val response = client.restartDownload(ids)
+        if (DaemonHelper.isSuccess(response)) {
+            term.println((TextColors.green)("Restarted ${ids.size} download(s) via daemon"))
+        } else {
+            term.println((TextColors.red)("Failed: ${DaemonHelper.getError(response)}"))
+        }
+    }
+
+    override suspend fun runDirect(term: Terminal) {
+        var count = 0
+        for (id in ids) {
+            val item = downloadService.getItem(id)
+            if (item == null) {
+                term.println((TextColors.yellow)("! Download #$id not found"))
+                continue
+            }
+            downloadService.restartDownload(id)
+            term.println("(${(TextColors.green)("↻")}) Restarted #$id: ${item.name}")
+            count++
+        }
+        if (count > 0) {
+            term.println((TextColors.green)("Restarted $count download(s)"))
+        }
+    }
+}
+
+class PauseAllCommand : CliktCommand(
+    name = "pause-all",
+    help = "Pause all active downloads"
+), KoinComponent {
+    private val downloadService: CliDownloadService by inject()
+
+    override fun run() = runBlocking {
+        val term = Terminal()
+        val daemonClient = DaemonHelper.daemonClient()
+        if (daemonClient != null) {
+            val response = daemonClient.pauseAll()
+            if (DaemonHelper.isSuccess(response)) {
+                term.println((TextColors.green)("Paused all downloads via daemon"))
+            } else {
+                term.println((TextColors.red)("Failed: ${DaemonHelper.getError(response)}"))
+            }
+        } else {
+            downloadService.boot()
+            downloadService.pauseAll()
+            term.println((TextColors.green)("Paused all downloads"))
         }
     }
 }
@@ -146,8 +229,63 @@ class InfoCommand : CliktCommand(
 
     override fun run() = runBlocking {
         val term = Terminal()
-        downloadService.boot()
 
+        // Auto-detect daemon mode
+        val daemonClient = DaemonHelper.daemonClient()
+        if (daemonClient != null) {
+            runWithDaemon(term, daemonClient)
+            return@runBlocking
+        }
+
+        // Direct mode
+        downloadService.boot()
+        runDirect(term)
+    }
+
+    private fun runWithDaemon(term: Terminal, daemonClient: DaemonClient) {
+        if (json) {
+            // JSON output for multiple IDs
+            val jsonItems = ids.mapNotNull { id ->
+                val response = daemonClient.getDownload(id)
+                if (response == null || !DaemonHelper.isSuccess(response)) {
+                    term.println((TextColors.red)("Download #$id not found via daemon"))
+                    null
+                } else {
+                    response
+                }
+            }
+            if (jsonItems.isNotEmpty()) {
+                term.println(Json { prettyPrint = true }.encodeToString(jsonItems))
+            }
+        } else {
+            for (id in ids) {
+                val response = daemonClient.getDownload(id)
+                if (response == null) {
+                    term.println((TextColors.red)("Download #$id not found via daemon"))
+                    continue
+                }
+                // Parse the JSON response data field
+                val jsonStr = try {
+                    val obj = Json { ignoreUnknownKeys = true }.decodeFromString<kotlinx.serialization.json.JsonObject>(response)
+                    obj["data"]?.toString() ?: response
+                } catch (_: Exception) { response }
+
+                term.println((TextColors.brightCyan)("Download #$id (via daemon)"))
+                // Try to extract fields from the JSON response
+                try {
+                    val item = Json { ignoreUnknownKeys = true }.decodeFromString<kotlinx.serialization.json.JsonObject>(
+                        if (jsonStr.startsWith("{")) jsonStr else "{}"
+                    )
+                    term.println((TextColors.brightBlue)("  Data:    ") + item.toString().take(200))
+                } catch (_: Exception) {
+                    term.println((TextColors.brightBlue)("  Data:    ") + jsonStr.take(200))
+                }
+                term.println()
+            }
+        }
+    }
+
+    private suspend fun runDirect(term: Terminal) {
         val foundItems = ids.mapNotNull { id ->
             val item = downloadService.getItem(id)
             if (item == null) {
