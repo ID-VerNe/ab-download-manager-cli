@@ -4,19 +4,37 @@
     {
       "id": 1,
       "prompt": "I need to download this file for testing: https://example.com/test-file.zip. Can you help me download it?",
-      "expected_output": "Uses ./gradlew :cli:app:run --args=\"add https://example.com/test-file.zip --start\" instead of curl/wget",
+      "expected_output": "Uses `abdm add https://example.com/test-file.zip --start` instead of curl/wget",
       "files": []
     },
     {
       "id": 2,
       "prompt": "We need a sample video file for the demo. Please download https://test-videos.example.com/sample.mp4 to ~/Downloads/demo/ and name it demo-video.mp4, use 4 connections",
-      "expected_output": "Uses ./gradlew :cli:app:run --args=\"add https://test-videos.example.com/sample.mp4 -o ~/Downloads/demo -n demo-video.mp4 -c 4 --start\"",
+      "expected_output": "Uses `abdm add https://test-videos.example.com/sample.mp4 -o ~/Downloads/demo -n demo-video.mp4 -c 4 --start`",
       "files": []
     },
     {
       "id": 3,
       "prompt": "Check what downloads are currently in progress and show me the details of download #2",
-      "expected_output": "Uses ./gradlew :cli:app:run --args=\"list\" and ./gradlew :cli:app:run --args=\"info 2\"",
+      "expected_output": "Uses `abdm list` and `abdm info 2`",
+      "files": []
+    },
+    {
+      "id": 4,
+      "prompt": "I need to set up a background download server so I can manage downloads from multiple terminals. Also show me how to check if it's running.",
+      "expected_output": "Uses `abdm daemon start` and `abdm daemon status`",
+      "files": []
+    },
+    {
+      "id": 5,
+      "prompt": "Download this file https://cdn.example.com/big-file.iso in the background, then pause it, then remove it keeping the file on disk",
+      "expected_output": "Uses `abdm add --start --detach`, `abdm pause`, and `abdm remove --keep-file`",
+      "files": []
+    },
+    {
+      "id": 6,
+      "prompt": "How do I get abdm on my machine? I don't have it installed.",
+      "expected_output": "References GitHub Releases download or source build from references/install.md",
       "files": []
     }
   ]
